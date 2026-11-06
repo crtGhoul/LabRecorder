@@ -1,0 +1,28 @@
+# Build and output directories
+bin/
+obj/
+dist/
+.vs/
+
+# Large binary executables and media
+*.exe
+*.dll
+*.pdb
+*.mp4
+*.m4v
+*.mov
+*.wav
+*.avi
+
+# Test logs and temporary cache
+*.log
+test_out.txt
+test_puregpu.mp4
+acceptance_test_report.log
+crash.log
+
+# User specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
