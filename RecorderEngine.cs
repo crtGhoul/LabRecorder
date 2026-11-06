@@ -79,8 +79,19 @@ namespace LabRecorder
         public bool HasAmfSupport => ActiveEncoder == HardwareEncoderType.Amf;
         public bool IsRecording { get; private set; }
         public bool IsPaused { get; private set; }
+        public int LastElapsedSeconds { get; set; } = 0;
         public int ActiveProcessId => _activeProcessId;
         public int CamProcessId => 0;
+
+        public bool IsProcessAlive()
+        {
+            if (_hProcessScreen == IntPtr.Zero) return false;
+            if (GetExitCodeProcess(_hProcessScreen, out uint exitCode))
+            {
+                return exitCode == 259; // STILL_ACTIVE (0x103 = 259)
+            }
+            return false;
+        }
 
         // Recording Process (handles real-time single-pass OBS-grade recording: screen + cam overlay + audio)
         private IntPtr _hProcessScreen = IntPtr.Zero;
@@ -177,6 +188,19 @@ namespace LabRecorder
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr CreateFile(
+            string lpFileName,
+            uint dwDesiredAccess,
+            uint dwShareMode,
+            ref SECURITY_ATTRIBUTES lpSecurityAttributes,
+            uint dwCreationDisposition,
+            uint dwFlagsAndAttributes,
+            IntPtr hTemplateFile);
         #endregion
 
         public static string FindFFmpegPath()
@@ -378,7 +402,8 @@ namespace LabRecorder
 
         private void StartSegment()
         {
-            string screenSegPath = $"{_baseTempPrefix}_scr{_segmentIndex}.mp4";
+            // If segmentIndex == 0, record directly into the target final path (OBS-grade, zero remux, crash-resilient)
+            string screenSegPath = _segmentIndex == 0 ? _targetFinalPath : $"{_baseTempPrefix}_scr{_segmentIndex}.mp4";
             _screenSegments.Add(screenSegPath);
 
             // Handle system audio WASAPI loopback pipe
@@ -419,19 +444,38 @@ namespace LabRecorder
             CreatePipe(out hStdinRead, out hStdinWrite, ref sa, 0);
             SetHandleInformation(hStdinWrite, 1, 0);
 
+            // Redirect stderr to %TEMP%\labrec_ffmpeg.log so all FFmpeg diagnostics are captured
+            string logPath = Path.Combine(Path.GetTempPath(), "labrec_ffmpeg.log");
+            var saFile = new SECURITY_ATTRIBUTES();
+            saFile.nLength = Marshal.SizeOf(saFile);
+            saFile.bInheritHandle = true;
+
+            IntPtr hStdErr = CreateFile(
+                logPath,
+                0x40000000, // GENERIC_WRITE
+                1 | 2,      // FILE_SHARE_READ | FILE_SHARE_WRITE
+                ref saFile,
+                2,          // CREATE_ALWAYS
+                0x80,       // FILE_ATTRIBUTE_NORMAL
+                IntPtr.Zero);
+
             var si = new STARTUPINFO();
             si.cb = Marshal.SizeOf(si);
             si.lpDesktop = @"WinSta0\Default";
-            si.dwFlags = 0x00000100;
+            si.dwFlags = 0x00000100; // STARTF_USESTDHANDLES
             si.hStdInput = hStdinRead;
             si.hStdOutput = IntPtr.Zero;
-            si.hStdError = IntPtr.Zero;
+            si.hStdError = (hStdErr != IntPtr.Zero && hStdErr != new IntPtr(-1)) ? hStdErr : IntPtr.Zero;
 
             var pi = new PROCESS_INFORMATION();
             // Launch with HIGH_PRIORITY_CLASS (0x00000080) + CREATE_NO_WINDOW (0x08000000) so game loads never starve capture
             uint creationFlags = 0x08000000 | 0x00000080;
             bool success = CreateProcess(null, fullCmd, IntPtr.Zero, IntPtr.Zero, true, creationFlags, IntPtr.Zero, null, ref si, out pi);
             CloseHandle(hStdinRead);
+            if (hStdErr != IntPtr.Zero && hStdErr != new IntPtr(-1))
+            {
+                CloseHandle(hStdErr);
+            }
 
             if (success)
             {
@@ -711,6 +755,22 @@ namespace LabRecorder
 
             StopAllProcesses();
             IsPaused = true;
+
+            // If segment 0 was recorded directly to _targetFinalPath, move it to temp segment 0 so concat can produce _targetFinalPath
+            if (_segmentIndex == 0 && _screenSegments.Count > 0 && _screenSegments[0] == _targetFinalPath && File.Exists(_targetFinalPath))
+            {
+                string seg0Temp = $"{_baseTempPrefix}_scr0.mp4";
+                try
+                {
+                    if (File.Exists(seg0Temp)) File.Delete(seg0Temp);
+                    File.Move(_targetFinalPath, seg0Temp);
+                    _screenSegments[0] = seg0Temp;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Pause rename error: " + ex.Message);
+                }
+            }
         }
 
         public void ResumeRecording()
@@ -795,34 +855,17 @@ namespace LabRecorder
             if (validSegments.Count == 1)
             {
                 string singleSeg = validSegments[0];
-                bool remuxed = false;
-                try
+                if (!string.Equals(Path.GetFullPath(singleSeg), Path.GetFullPath(finalFile), StringComparison.OrdinalIgnoreCase))
                 {
-                    // Fast stream-copy remux to standard faststart MP4 (takes ~0.1s on SSD)
-                    var psi = new ProcessStartInfo
+                    try
                     {
-                        FileName = FFmpegPath,
-                        Arguments = $"-y -i \"{singleSeg}\" -c copy -movflags +faststart \"{finalFile}\"",
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var p = Process.Start(psi);
-                    if (p != null)
-                    {
-                        p.WaitForExit(6000);
-                        if (p.ExitCode == 0 && File.Exists(finalFile) && new FileInfo(finalFile).Length > 1000)
-                        {
-                            remuxed = true;
-                            try { File.Delete(singleSeg); } catch {}
-                        }
+                        if (File.Exists(finalFile)) File.Delete(finalFile);
+                        File.Move(singleSeg, finalFile);
                     }
-                }
-                catch {}
-
-                if (!remuxed)
-                {
-                    if (File.Exists(finalFile)) File.Delete(finalFile);
-                    File.Move(singleSeg, finalFile);
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("Move segment error: " + ex.Message);
+                    }
                 }
             }
             else if (validSegments.Count > 1)
@@ -841,14 +884,17 @@ namespace LabRecorder
                     var psi = new ProcessStartInfo
                     {
                         FileName = FFmpegPath,
-                        Arguments = $"-y -f concat -safe 0 -i \"{concatFile}\" -c copy -movflags +faststart \"{finalFile}\"",
+                        Arguments = $"-y -f concat -safe 0 -i \"{concatFile}\" -c copy \"{finalFile}\"",
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
                     using var p = Process.Start(psi);
-                    p?.WaitForExit(10000);
+                    p?.WaitForExit(30000);
                 }
-                catch {}
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Concat segments error: " + ex.Message);
+                }
 
                 try { File.Delete(concatFile); } catch {}
                 foreach (var seg in validSegments)
@@ -863,12 +909,16 @@ namespace LabRecorder
                 FileName = Path.GetFileName(finalFile)
             };
 
-            if (File.Exists(finalFile))
+            if (File.Exists(finalFile) && new FileInfo(finalFile).Length > 1000)
             {
                 var fi = new FileInfo(finalFile);
                 result.FileSizeBytes = fi.Length;
                 result.FileSizeFormatted = FormatBytes(fi.Length);
                 result.Duration = ExtractDuration(finalFile);
+                if (result.Duration == TimeSpan.Zero && LastElapsedSeconds > 0)
+                {
+                    result.Duration = TimeSpan.FromSeconds(LastElapsedSeconds);
+                }
                 result.DurationFormatted = $"{(int)result.Duration.TotalMinutes:00}:{result.Duration.Seconds:00}";
                 result.Thumbnail = ExtractThumbnail(finalFile);
             }

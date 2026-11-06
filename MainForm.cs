@@ -1477,6 +1477,22 @@ namespace LabRecorder
                 _chkSysAudio.Checked
             );
 
+            // Verify recording process actually started
+            Thread.Sleep(250);
+            if (!_engine.IsProcessAlive())
+            {
+                _lblStatusPill.Text = "● READY";
+                _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                _lblTimer.Text = "00:00";
+                _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
+
+                string logPath = Path.Combine(Path.GetTempPath(), "labrec_ffmpeg.log");
+                string errorDetail = File.Exists(logPath) ? File.ReadAllText(logPath) : "Could not initialize video capture engine.";
+                if (errorDetail.Length > 600) errorDetail = errorDetail.Substring(errorDetail.Length - 600);
+                MessageBox.Show($"Failed to start recording:\n\n{errorDetail}", "Lab Recorder Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             _btnRecord.Enabled = false;
             _btnPause.Enabled = true;
             _btnPause.Text = "⏸ Pause [F9]";
@@ -1549,7 +1565,9 @@ namespace LabRecorder
             _pulseTimer.Stop();
             _lblStatusPill.Text = "⏳ SAVING...";
             _lblStatusPill.ForeColor = Color.FromArgb(56, 189, 248);
+            Refresh();
 
+            _engine.LastElapsedSeconds = _elapsedSeconds;
             _lastResult = _engine.StopRecording();
 
             _btnRecord.Enabled = true;
@@ -1572,10 +1590,32 @@ namespace LabRecorder
             _chkSysAudio.Enabled = true;
             _chkCountdown.Enabled = true;
 
-            _lblStatusPill.Text = "✔ SAVED";
-            _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
-            _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
-            ShowFinishedCard(_lastResult);
+            if (_lastResult != null && !string.IsNullOrEmpty(_lastResult.FilePath) && File.Exists(_lastResult.FilePath))
+            {
+                _lblStatusPill.Text = "✔ SAVED";
+                _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
+                ShowFinishedCard(_lastResult);
+
+                // Automatically reveal the recording in Windows Explorer
+                try
+                {
+                    Process.Start("explorer.exe", $"/select,\"{_lastResult.FilePath}\"");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Explorer launch error: " + ex.Message);
+                }
+            }
+            else
+            {
+                _lblStatusPill.Text = "❌ SAVE FAILED";
+                _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
+                string logPath = Path.Combine(Path.GetTempPath(), "labrec_ffmpeg.log");
+                string detail = File.Exists(logPath) ? File.ReadAllText(logPath) : "No diagnostic log available.";
+                if (detail.Length > 800) detail = detail.Substring(detail.Length - 800);
+                MessageBox.Show($"Recording failed to save.\n\n{detail}", "Lab Recorder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
 
             // Resume live preview if face cam is checked
             if (_chkFaceCam.Checked)
@@ -1592,6 +1632,16 @@ namespace LabRecorder
 
         private void RecTimer_Tick(object? sender, EventArgs e)
         {
+            if (_engine.IsRecording && !_engine.IsPaused && !_engine.IsProcessAlive())
+            {
+                _recTimer.Stop();
+                _pulseTimer.Stop();
+                _lblStatusPill.Text = "⚠️ STOPPED UNEXPECTEDLY";
+                _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
+                BtnStop_Click(this, EventArgs.Empty);
+                return;
+            }
+
             _elapsedSeconds++;
             int mins = _elapsedSeconds / 60;
             int secs = _elapsedSeconds % 60;
