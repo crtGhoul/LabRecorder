@@ -19,7 +19,8 @@
   - **WASAPI Loopback**: Pristine system audio capture for games, Discord, Spotify, and browser media.
   - **Microphone Leg**: Hardware DirectShow input with +18 dB studio gain boost and an integrated limiter (`alimiter=limit=0.79`) to eliminate clipping and distortion.
   - **Live VU Meter**: Real-time post-gain audio meter with dB readout.
-- **🛡️ Instant-Save Fragmented MP4**: Zero corrupted recordings. By using fragmented MP4 (`+frag_keyframe+empty_moov+default_base_moof`), every frame is written to disk in real-time. If power drops or the app is closed, your recording is 100% intact.
+- **🛡️ Instant-Save Fragmented MP4 with FastStart**: Zero corrupted recordings. Captures live into crash-resilient fragmented MP4, then finalizes in <300ms with `-movflags +faststart` so video players open, seek, and play at locked 60 FPS without stutter or lag.
+- **🔄 Built-In In-Place Self-Updater**: 1-click update checks directly against GitHub Releases with atomic in-place binary replacement, release notes preview, and zero-hassle updates.
 - **⌨️ Global Game Hotkeys**:
   - `F9`: Start, Pause, and Resume recording without leaving your game.
   - `F10`: Stop and save recording instantly.

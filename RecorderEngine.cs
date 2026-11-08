@@ -402,8 +402,8 @@ namespace LabRecorder
 
         private void StartSegment()
         {
-            // If segmentIndex == 0, record directly into the target final path (OBS-grade, zero remux, crash-resilient)
-            string screenSegPath = _segmentIndex == 0 ? _targetFinalPath : $"{_baseTempPrefix}_scr{_segmentIndex}.mp4";
+            // Record segment to temp file with fragmented MP4 for crash resilience
+            string screenSegPath = $"{_baseTempPrefix}_scr{_segmentIndex}.mp4";
             _screenSegments.Add(screenSegPath);
 
             // Handle system audio WASAPI loopback pipe
@@ -670,14 +670,14 @@ namespace LabRecorder
                 string scaleClause = (screenW != outW || screenH != outH)
                     ? $",scale={outW}:{outH}:flags=fast_bilinear"
                     : "";
-                filterParts.Add($"[0:v]hwdownload,format=bgra{scaleClause},fps={targetFps},format=yuv420p[basev]");
+                filterParts.Add($"[0:v]hwdownload,format=bgra{scaleClause},format=yuv420p[basev]");
             }
             else
             {
                 string scaleClause = (screenW != outW || screenH != outH)
                     ? $",scale={outW}:{outH}:flags=fast_bilinear"
                     : "";
-                filterParts.Add($"[0:v]fps={targetFps}{scaleClause},format=yuv420p[basev]");
+                filterParts.Add($"[0:v]format=yuv420p{scaleClause}[basev]");
             }
 
             // If webcam enabled: composited in real-time via alphamerge
@@ -755,22 +755,6 @@ namespace LabRecorder
 
             StopAllProcesses();
             IsPaused = true;
-
-            // If segment 0 was recorded directly to _targetFinalPath, move it to temp segment 0 so concat can produce _targetFinalPath
-            if (_segmentIndex == 0 && _screenSegments.Count > 0 && _screenSegments[0] == _targetFinalPath && File.Exists(_targetFinalPath))
-            {
-                string seg0Temp = $"{_baseTempPrefix}_scr0.mp4";
-                try
-                {
-                    if (File.Exists(seg0Temp)) File.Delete(seg0Temp);
-                    File.Move(_targetFinalPath, seg0Temp);
-                    _screenSegments[0] = seg0Temp;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("Pause rename error: " + ex.Message);
-                }
-            }
         }
 
         public void ResumeRecording()
@@ -855,16 +839,34 @@ namespace LabRecorder
             if (validSegments.Count == 1)
             {
                 string singleSeg = validSegments[0];
-                if (!string.Equals(Path.GetFullPath(singleSeg), Path.GetFullPath(finalFile), StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    try
+                    // Remux the single segment with -movflags +faststart to produce finalFile with valid MOOV header
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = FFmpegPath,
+                        Arguments = $"-y -i \"{singleSeg}\" -c copy -movflags +faststart \"{finalFile}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var p = Process.Start(psi);
+                    p?.WaitForExit(20000);
+                    if (File.Exists(finalFile) && new FileInfo(finalFile).Length > 1000)
+                    {
+                        try { File.Delete(singleSeg); } catch {}
+                    }
+                    else
                     {
                         if (File.Exists(finalFile)) File.Delete(finalFile);
                         File.Move(singleSeg, finalFile);
                     }
-                    catch (Exception ex)
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Finalize faststart error: " + ex.Message);
+                    if (!File.Exists(finalFile) && File.Exists(singleSeg))
                     {
-                        Debug.WriteLine("Move segment error: " + ex.Message);
+                        try { File.Move(singleSeg, finalFile); } catch {}
                     }
                 }
             }
@@ -884,7 +886,7 @@ namespace LabRecorder
                     var psi = new ProcessStartInfo
                     {
                         FileName = FFmpegPath,
-                        Arguments = $"-y -f concat -safe 0 -i \"{concatFile}\" -c copy \"{finalFile}\"",
+                        Arguments = $"-y -f concat -safe 0 -i \"{concatFile}\" -c copy -movflags +faststart \"{finalFile}\"",
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };

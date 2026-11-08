@@ -23,6 +23,7 @@ namespace LabRecorder
         [STAThread]
         static void Main(string[] args)
         {
+            UpdateService.CleanOldExecutables();
             TimeBeginPeriod(1); // Enforce 1ms high-precision Windows timer for the entire process tree (eliminates 15.6ms sleep jitter)
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>

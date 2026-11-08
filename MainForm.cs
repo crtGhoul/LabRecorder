@@ -142,6 +142,8 @@ namespace LabRecorder
         private ModernButton _btnStop = null!;
         private CheckBox _chkCountdown = null!;
         private Label _lblLogoBadge = null!;
+        private ModernButton _btnUpdate = null!;
+        private UpdateInfo? _latestUpdateInfo;
 
         // Layout Containers
         private Panel _pnlMain = null!;
@@ -209,6 +211,126 @@ namespace LabRecorder
             }
             catch {}
         }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            StartBackgroundUpdateCheck();
+        }
+
+        #region Self-Update Feature
+        private void StartBackgroundUpdateCheck()
+        {
+            Task.Run(async () =>
+            {
+                await Task.Delay(2500);
+                var info = await UpdateService.CheckForUpdateAsync();
+                if (info.HasUpdate && !IsDisposed && IsHandleCreated)
+                {
+                    try
+                    {
+                        Invoke(new Action(() =>
+                        {
+                            _latestUpdateInfo = info;
+                            _btnUpdate.Text = $"{info.LatestVersion} 🚀";
+                            _btnUpdate.NormalColor = Color.FromArgb(16, 185, 129);
+                            _btnUpdate.HoverColor = Color.FromArgb(5, 150, 105);
+                            _btnUpdate.PressedColor = Color.FromArgb(4, 120, 87);
+                            _btnUpdate.BorderColor = Color.FromArgb(52, 211, 153);
+                            _btnUpdate.ForeColor = Color.White;
+                        }));
+                    }
+                    catch {}
+                }
+            });
+        }
+
+        private async Task CheckForUpdatesUserAsync()
+        {
+            if (_latestUpdateInfo != null && _latestUpdateInfo.HasUpdate)
+            {
+                await PromptAndApplyUpdateAsync(_latestUpdateInfo);
+                return;
+            }
+
+            _btnUpdate.Text = "Checking...";
+            _btnUpdate.Enabled = false;
+
+            var info = await UpdateService.CheckForUpdateAsync();
+            _latestUpdateInfo = info;
+            _btnUpdate.Enabled = true;
+
+            if (info.HasUpdate)
+            {
+                _btnUpdate.Text = $"{info.LatestVersion} 🚀";
+                _btnUpdate.NormalColor = Color.FromArgb(16, 185, 129);
+                _btnUpdate.HoverColor = Color.FromArgb(5, 150, 105);
+                _btnUpdate.PressedColor = Color.FromArgb(4, 120, 87);
+                _btnUpdate.BorderColor = Color.FromArgb(52, 211, 153);
+                _btnUpdate.ForeColor = Color.White;
+                await PromptAndApplyUpdateAsync(info);
+            }
+            else
+            {
+                _btnUpdate.Text = $"{UpdateService.CurrentVersion} ✓";
+                MessageBox.Show(
+                    $"You are running the latest version of Lab Recorder ({UpdateService.CurrentVersion})!\n\nAll features and encoders are up to date.",
+                    "Lab Recorder Update",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                _btnUpdate.Text = $"{UpdateService.CurrentVersion} 🔄";
+            }
+        }
+
+        private async Task PromptAndApplyUpdateAsync(UpdateInfo info)
+        {
+            string prompt = $"A new version of Lab Recorder is available!\n\n" +
+                            $"Installed Version: {UpdateService.CurrentVersion}\n" +
+                            $"Latest Version:    {info.LatestVersion}\n\n" +
+                            (string.IsNullOrWhiteSpace(info.ReleaseNotes) ? "" : $"Release Notes:\n{info.ReleaseNotes.Trim()}\n\n") +
+                            "Click 'Yes' to update automatically now in-place.\n" +
+                            "Click 'No' to view release on GitHub.\n" +
+                            "Click 'Cancel' to skip for now.";
+
+            var dialogResult = MessageBox.Show(prompt, "Lab Recorder Update Available", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
+            if (dialogResult == DialogResult.Yes)
+            {
+                if (string.IsNullOrEmpty(info.ExeDownloadUrl))
+                {
+                    Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true });
+                    return;
+                }
+
+                _btnUpdate.Text = "Updating...";
+                _btnUpdate.Enabled = false;
+
+                var progress = new Progress<int>(pct =>
+                {
+                    _btnUpdate.Text = $"{pct}%";
+                });
+
+                bool success = await UpdateService.DownloadAndApplyUpdateAsync(info.ExeDownloadUrl, progress);
+                if (!success)
+                {
+                    _btnUpdate.Text = $"{info.LatestVersion} 🚀";
+                    _btnUpdate.Enabled = true;
+                    var r = MessageBox.Show(
+                        "Automatic in-place update could not complete.\n\nWould you like to open the GitHub Release page to download it directly?",
+                        "Update Notice",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (r == DialogResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true });
+                    }
+                }
+            }
+            else if (dialogResult == DialogResult.No)
+            {
+                Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true });
+            }
+        }
+        #endregion
 
         private void RegisterGlobalHotkeys()
         {
@@ -456,8 +578,8 @@ namespace LabRecorder
             // Studio Branding Logo Badge (Anchor Right)
             var pnlLogo = new Panel
             {
-                Size = new Size(215, 60),
-                Location = new Point(_cardTop.Width - 230, 14),
+                Size = new Size(245, 68),
+                Location = new Point(_cardTop.Width - 255, 12),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 BackColor = Color.Transparent
             };
@@ -474,7 +596,7 @@ namespace LabRecorder
                 Text = "LAB RECORDER",
                 Font = new Font("Segoe UI", 11f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(241, 245, 249),
-                Location = new Point(48, 7),
+                Location = new Point(48, 5),
                 AutoSize = true
             };
             _lblLogoBadge = new Label
@@ -482,12 +604,32 @@ namespace LabRecorder
                 Text = "⚡ DETECTING GPU",
                 Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(56, 189, 248),
-                Location = new Point(50, 30),
+                Location = new Point(50, 26),
                 AutoSize = true
             };
+
+            _btnUpdate = new ModernButton
+            {
+                Text = $"{UpdateService.CurrentVersion} 🔄",
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(24, 30, 44),
+                HoverColor = Color.FromArgb(42, 50, 70),
+                PressedColor = Color.FromArgb(18, 22, 32),
+                BorderColor = Color.FromArgb(51, 65, 85),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                BorderRadius = 6,
+                Size = new Size(86, 22),
+                Location = new Point(50, 44),
+                Cursor = Cursors.Hand
+            };
+            var toolTipUpdate = new ToolTip();
+            toolTipUpdate.SetToolTip(_btnUpdate, $"Lab Recorder {UpdateService.CurrentVersion}\nClick to check for updates");
+            _btnUpdate.Click += async (s, e) => await CheckForUpdatesUserAsync();
+
             pnlLogo.Controls.Add(picLogo);
             pnlLogo.Controls.Add(lblLogoTitle);
             pnlLogo.Controls.Add(_lblLogoBadge);
+            pnlLogo.Controls.Add(_btnUpdate);
             _cardTop.Controls.Add(pnlLogo);
 
             // ==========================================
