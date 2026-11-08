@@ -157,13 +157,23 @@ namespace LabRecorder
             Size = new Size(240, 26);
         }
 
-        protected override void OnClick(EventArgs e)
+        protected override void OnMouseDown(MouseEventArgs e)
         {
-            if (Enabled)
+            base.OnMouseDown(e);
+            if (Enabled && e.Button == MouseButtons.Left)
             {
                 Checked = !Checked;
             }
-            base.OnClick(e);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (Enabled && (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter))
+            {
+                Checked = !Checked;
+                e.Handled = true;
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -198,6 +208,150 @@ namespace LabRecorder
             Color textCol = !Enabled ? Color.FromArgb(80, 95, 120) : Color.FromArgb(241, 245, 249);
             var textRect = new Rectangle(textX, 0, Width - textX, Height);
             TextRenderer.DrawText(g, LabelText, Font, textRect, textCol, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        }
+    }
+
+    public class ModernComboBox : ComboBox
+    {
+        private const int WM_PAINT = 0x000F;
+        private const int WM_ERASEBKGND = 0x0014;
+        private bool _isHovered;
+
+        public ModernComboBox()
+        {
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+            DropDownStyle = ComboBoxStyle.DropDownList;
+            DrawMode = DrawMode.OwnerDrawFixed;
+            ItemHeight = 24;
+            BackColor = Color.FromArgb(16, 20, 29);
+            ForeColor = Color.FromArgb(241, 245, 249);
+            Font = new Font("Segoe UI", 9.25f);
+            Cursor = Cursors.Hand;
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            _isHovered = true;
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _isHovered = false;
+            Invalidate();
+        }
+
+        protected override void OnDropDown(EventArgs e)
+        {
+            base.OnDropDown(e);
+            Invalidate();
+        }
+
+        protected override void OnDropDownClosed(EventArgs e)
+        {
+            base.OnDropDownClosed(e);
+            Invalidate();
+        }
+
+        protected override void OnDrawItem(DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= Items.Count) return;
+
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            bool isSelected = (e.State & DrawItemState.Selected) != 0;
+            Color bg = isSelected ? Color.FromArgb(37, 99, 235) : Color.FromArgb(16, 20, 29);
+            Color fg = isSelected ? Color.White : Color.FromArgb(241, 245, 249);
+
+            using (var brush = new SolidBrush(bg))
+            {
+                g.FillRectangle(brush, e.Bounds);
+            }
+
+            string text = Items[e.Index]?.ToString() ?? "";
+            var textRect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 16, e.Bounds.Height);
+            TextRenderer.DrawText(g, text, Font, textRect, fg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+
+            if (isSelected)
+            {
+                using var p = new Pen(Color.FromArgb(96, 165, 250), 1f);
+                g.DrawLine(p, e.Bounds.Left, e.Bounds.Top, e.Bounds.Right, e.Bounds.Top);
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_ERASEBKGND)
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+
+            base.WndProc(ref m);
+
+            if (m.Msg == WM_PAINT)
+            {
+                using var g = Graphics.FromHwnd(Handle);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                var clientRect = new Rectangle(0, 0, Width - 1, Height - 1);
+
+                // Background
+                Color bg = !Enabled ? Color.FromArgb(13, 16, 23) :
+                           (_isHovered || DroppedDown) ? Color.FromArgb(22, 28, 41) : Color.FromArgb(16, 20, 29);
+
+                using (var path = MainForm.CreateRoundedRectangle(clientRect, 6))
+                {
+                    Color parentBg = Parent?.BackColor ?? Color.FromArgb(16, 20, 29);
+                    using (var parentBrush = new SolidBrush(parentBg))
+                    {
+                        g.FillRectangle(parentBrush, 0, 0, Width, Height);
+                    }
+
+                    using (var bgBrush = new SolidBrush(bg))
+                    {
+                        g.FillPath(bgBrush, path);
+                    }
+
+                    // Border
+                    Color borderColor = !Enabled ? Color.FromArgb(25, 32, 45) :
+                                        DroppedDown ? Color.FromArgb(56, 189, 248) :
+                                        _isHovered ? Color.FromArgb(50, 65, 90) : Color.FromArgb(32, 40, 58);
+                    using (var pen = new Pen(borderColor, 1.2f))
+                    {
+                        g.DrawPath(pen, path);
+                    }
+                }
+
+                // Selected item text
+                string text = SelectedIndex >= 0 && SelectedIndex < Items.Count ? (Items[SelectedIndex]?.ToString() ?? "") : Text;
+                var textRect = new Rectangle(10, 0, Width - 32, Height);
+                Color textCol = !Enabled ? Color.FromArgb(90, 105, 125) : Color.FromArgb(241, 245, 249);
+                TextRenderer.DrawText(g, text, Font, textRect, textCol, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+                // Chevron Arrow
+                int arrowX = Width - 18;
+                int arrowY = Height / 2 - 2;
+                Color arrowCol = !Enabled ? Color.FromArgb(70, 80, 100) :
+                                 DroppedDown ? Color.FromArgb(56, 189, 248) :
+                                 _isHovered ? Color.FromArgb(203, 213, 225) : Color.FromArgb(148, 163, 184);
+                using (var arrowPen = new Pen(arrowCol, 1.8f))
+                {
+                    if (DroppedDown)
+                    {
+                        g.DrawLine(arrowPen, arrowX, arrowY + 4, arrowX + 4, arrowY);
+                        g.DrawLine(arrowPen, arrowX + 4, arrowY, arrowX + 8, arrowY + 4);
+                    }
+                    else
+                    {
+                        g.DrawLine(arrowPen, arrowX, arrowY, arrowX + 4, arrowY + 4);
+                        g.DrawLine(arrowPen, arrowX + 4, arrowY + 4, arrowX + 8, arrowY);
+                    }
+                }
+            }
         }
     }
 
@@ -299,19 +453,19 @@ namespace LabRecorder
 
         // UI Controls - Left Column (Video & Display)
         private ModernCard _cardVideo = null!;
-        private ComboBox _cmbScreen = null!;
+        private ModernComboBox _cmbScreen = null!;
         private ModernButton _btnSelectArea = null!;
-        private ComboBox _cmbQuality = null!;
+        private ModernComboBox _cmbQuality = null!;
         private ModernToggle _chkFaceCam = null!;
         private PictureBox _picFaceCamPreview = null!;
-        private ComboBox _cmbCamCorner = null!;
-        private ComboBox _cmbCamSize = null!;
+        private ModernComboBox _cmbCamCorner = null!;
+        private ModernComboBox _cmbCamSize = null!;
         private Panel _pnlFaceCamSettings = null!;
 
         // UI Controls - Right Column (Audio & Sound)
         private ModernCard _cardAudio = null!;
         private ModernToggle _chkMic = null!;
-        private ComboBox _cmbMicDevice = null!;
+        private ModernComboBox _cmbMicDevice = null!;
         private Label _lblMicDevice = null!;
         private Panel _pnlMicMeter = null!;
         private Label _lblDbValue = null!;
@@ -575,33 +729,7 @@ namespace LabRecorder
             return bmp;
         }
 
-        private static void SetupModernComboBox(ComboBox cmb)
-        {
-            cmb.DrawMode = DrawMode.OwnerDrawFixed;
-            cmb.ItemHeight = 28;
-            cmb.BackColor = Color.FromArgb(15, 19, 28);
-            cmb.ForeColor = Color.FromArgb(241, 245, 249);
-            cmb.FlatStyle = FlatStyle.Flat;
-            cmb.Font = new Font("Segoe UI", 9.25f);
-            cmb.DrawItem += (sender, e) =>
-            {
-                if (e.Index < 0) return;
-                var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                bool isSelected = (e.State & DrawItemState.Selected) != 0;
-                Color bg = isSelected ? Color.FromArgb(37, 99, 235) : Color.FromArgb(15, 19, 28);
-                Color fg = isSelected ? Color.White : Color.FromArgb(241, 245, 249);
-
-                using var brush = new SolidBrush(bg);
-                g.FillRectangle(brush, e.Bounds);
-
-                string text = cmb.Items[e.Index]?.ToString() ?? "";
-                using var font = new Font("Segoe UI", 9.25f);
-                var textRect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 16, e.Bounds.Height);
-                TextRenderer.DrawText(g, text, font, textRect, fg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
-            };
-        }
 
         private void InitializeComponent()
         {
@@ -836,13 +964,11 @@ namespace LabRecorder
                 AutoSize = true
             };
 
-            _cmbScreen = new ComboBox
+            _cmbScreen = new ModernComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
                 Location = new Point(14, 66),
                 Width = 265
             };
-            SetupModernComboBox(_cmbScreen);
             _cmbScreen.SelectedIndexChanged += CmbScreen_SelectedIndexChanged;
 
             _btnSelectArea = new ModernButton
@@ -867,9 +993,8 @@ namespace LabRecorder
                 AutoSize = true
             };
 
-            _cmbQuality = new ComboBox
+            _cmbQuality = new ModernComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
                 Location = new Point(14, 124),
                 Width = 356
             };
@@ -878,7 +1003,6 @@ namespace LabRecorder
             _cmbQuality.Items.Add("Standard — 1080p 30 FPS (~45 MB/min)");
             _cmbQuality.Items.Add("Light — 720p 30 FPS (Battery Saver, ~25 MB/min)");
             _cmbQuality.SelectedIndex = 1; // Best (1080p60) default
-            SetupModernComboBox(_cmbQuality);
 
             _chkFaceCam = new ModernToggle
             {
@@ -911,14 +1035,13 @@ namespace LabRecorder
                 Text = "Corner Position:",
                 Font = new Font("Segoe UI", 8f),
                 ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(120, 6),
+                Location = new Point(120, 4),
                 AutoSize = true
             };
 
-            _cmbCamCorner = new ComboBox
+            _cmbCamCorner = new ModernComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(120, 24),
+                Location = new Point(120, 22),
                 Width = 230
             };
             _cmbCamCorner.Items.Add("Bottom-Right");
@@ -926,28 +1049,25 @@ namespace LabRecorder
             _cmbCamCorner.Items.Add("Top-Right");
             _cmbCamCorner.Items.Add("Top-Left");
             _cmbCamCorner.SelectedIndex = 0;
-            SetupModernComboBox(_cmbCamCorner);
 
             var lblSize = new Label
             {
                 Text = "Overlay Size:",
                 Font = new Font("Segoe UI", 8f),
                 ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(120, 60),
+                Location = new Point(120, 58),
                 AutoSize = true
             };
 
-            _cmbCamSize = new ComboBox
+            _cmbCamSize = new ModernComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(120, 78),
+                Location = new Point(120, 76),
                 Width = 230
             };
             _cmbCamSize.Items.Add("Small");
             _cmbCamSize.Items.Add("Medium");
             _cmbCamSize.Items.Add("Large");
             _cmbCamSize.SelectedIndex = 1;
-            SetupModernComboBox(_cmbCamSize);
 
             _pnlFaceCamSettings.Controls.Add(_picFaceCamPreview);
             _pnlFaceCamSettings.Controls.Add(lblCorner);
@@ -1016,15 +1136,13 @@ namespace LabRecorder
                 Visible = false
             };
 
-            _cmbMicDevice = new ComboBox
+            _cmbMicDevice = new ModernComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
                 Location = new Point(14, 90),
                 Width = 356,
                 Visible = false
             };
             _cmbMicDevice.SelectedIndexChanged += CmbMicDevice_SelectedIndexChanged;
-            SetupModernComboBox(_cmbMicDevice);
 
             var lblMeter = new Label
             {
