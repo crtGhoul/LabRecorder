@@ -121,7 +121,7 @@ namespace LabRecorder
         }
     }
 
-    public class ModernToggle : Control
+    public class ModernToggle : Panel
     {
         private bool _checked;
 
@@ -150,7 +150,7 @@ namespace LabRecorder
 
         public ModernToggle()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9f, FontStyle.Bold);
@@ -201,7 +201,7 @@ namespace LabRecorder
         }
     }
 
-    public class SectionHeader : Control
+    public class SectionHeader : Panel
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string Title { get; set; } = "";
@@ -214,7 +214,7 @@ namespace LabRecorder
 
         public SectionHeader()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             BackColor = Color.Transparent;
             Height = 24;
             Font = new Font("Segoe UI", 9f, FontStyle.Bold);
