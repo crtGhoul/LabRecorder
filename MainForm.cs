@@ -15,16 +15,16 @@ namespace LabRecorder
     public class ModernButton : Button
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color NormalColor { get; set; } = Color.FromArgb(30, 36, 49);
+        public Color NormalColor { get; set; } = Color.FromArgb(20, 25, 36);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color HoverColor { get; set; } = Color.FromArgb(42, 50, 68);
+        public Color HoverColor { get; set; } = Color.FromArgb(32, 40, 58);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color PressedColor { get; set; } = Color.FromArgb(24, 29, 40);
+        public Color PressedColor { get; set; } = Color.FromArgb(14, 18, 26);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color BorderColor { get; set; } = Color.FromArgb(50, 60, 82);
+        public Color BorderColor { get; set; } = Color.FromArgb(42, 52, 74);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int BorderRadius { get; set; } = 8;
@@ -38,7 +38,7 @@ namespace LabRecorder
             FlatAppearance.BorderSize = 0;
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            Font = new Font("Segoe UI", 9.25f, FontStyle.Bold);
             ForeColor = Color.White;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         }
@@ -53,16 +53,23 @@ namespace LabRecorder
             var g = pevent.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            Color bg = !Enabled ? Color.FromArgb(22, 26, 36) :
+            Color bg = !Enabled ? Color.FromArgb(16, 20, 28) :
                        _isPressed ? PressedColor :
                        _isHovered ? HoverColor : NormalColor;
-            Color textColor = !Enabled ? Color.FromArgb(80, 90, 110) : ForeColor;
-            Color border = !Enabled ? Color.FromArgb(35, 40, 54) : BorderColor;
+            Color textColor = !Enabled ? Color.FromArgb(80, 95, 120) : ForeColor;
+            Color border = !Enabled ? Color.FromArgb(28, 35, 48) : BorderColor;
 
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
             using var path = MainForm.CreateRoundedRectangle(rect, BorderRadius);
             using var brush = new SolidBrush(bg);
             g.FillPath(brush, path);
+
+            // Subtle top edge specular highlight (Hallmark craft)
+            if (Enabled && !_isPressed && Height > 20)
+            {
+                using var highlightPen = new Pen(Color.FromArgb(24, 255, 255, 255), 1f);
+                g.DrawLine(highlightPen, BorderRadius / 2, 1, Width - 1 - BorderRadius / 2, 1);
+            }
 
             if (border != Color.Transparent)
             {
@@ -77,10 +84,10 @@ namespace LabRecorder
     public class ModernCard : Panel
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color CardBackground { get; set; } = Color.FromArgb(19, 24, 34);
+        public Color CardBackground { get; set; } = Color.FromArgb(16, 20, 29);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color BorderColor { get; set; } = Color.FromArgb(35, 43, 60);
+        public Color BorderColor { get; set; } = Color.FromArgb(32, 40, 58);
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int BorderRadius { get; set; } = 12;
@@ -89,7 +96,7 @@ namespace LabRecorder
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             BackColor = Color.Transparent;
-            Padding = new Padding(14);
+            Padding = new Padding(16);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -102,8 +109,148 @@ namespace LabRecorder
             using var brush = new SolidBrush(CardBackground);
             g.FillPath(brush, path);
 
+            // Subtle top specular hairline
+            if (Height > 24)
+            {
+                using var highlightPen = new Pen(Color.FromArgb(20, 255, 255, 255), 1f);
+                g.DrawLine(highlightPen, BorderRadius / 2, 1, Width - 1 - BorderRadius / 2, 1);
+            }
+
             using var pen = new Pen(BorderColor, 1.2f);
             g.DrawPath(pen, path);
+        }
+    }
+
+    public class ModernToggle : Control
+    {
+        private bool _checked;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool Checked
+        {
+            get => _checked;
+            set
+            {
+                if (_checked != value)
+                {
+                    _checked = value;
+                    CheckedChanged?.Invoke(this, EventArgs.Empty);
+                    Invalidate();
+                }
+            }
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public string LabelText { get; set; } = "";
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color ActiveTrackColor { get; set; } = Color.FromArgb(16, 185, 129); // Emerald
+
+        public event EventHandler? CheckedChanged;
+
+        public ModernToggle()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            Size = new Size(240, 26);
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            if (Enabled)
+            {
+                Checked = !Checked;
+            }
+            base.OnClick(e);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            int trackW = 34;
+            int trackH = 18;
+            int trackY = (Height - trackH) / 2;
+            var trackRect = new Rectangle(0, trackY, trackW, trackH);
+
+            Color trackBg = !Enabled ? Color.FromArgb(24, 29, 40) :
+                            Checked ? ActiveTrackColor : Color.FromArgb(32, 40, 56);
+            using var trackPath = MainForm.CreateRoundedRectangle(trackRect, 9);
+            using var trackBrush = new SolidBrush(trackBg);
+            g.FillPath(trackBrush, trackPath);
+
+            using var trackBorder = new Pen(Checked ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(45, 56, 78), 1f);
+            g.DrawPath(trackBorder, trackPath);
+
+            // Thumb circle
+            int thumbSize = 12;
+            int thumbY = trackY + (trackH - thumbSize) / 2;
+            int thumbX = Checked ? (trackW - thumbSize - 3) : 3;
+            var thumbRect = new Rectangle(thumbX, thumbY, thumbSize, thumbSize);
+            using var thumbBrush = new SolidBrush(!Enabled ? Color.FromArgb(148, 163, 184) : Color.White);
+            g.FillEllipse(thumbBrush, thumbRect);
+
+            // Label text
+            int textX = trackW + 10;
+            Color textCol = !Enabled ? Color.FromArgb(80, 95, 120) : Color.FromArgb(241, 245, 249);
+            var textRect = new Rectangle(textX, 0, Width - textX, Height);
+            TextRenderer.DrawText(g, LabelText, Font, textRect, textCol, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        }
+    }
+
+    public class SectionHeader : Control
+    {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public string Title { get; set; } = "";
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public string SectionType { get; set; } = "video"; // "video" or "audio"
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color AccentColor { get; set; } = Color.FromArgb(56, 189, 248);
+
+        public SectionHeader()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            BackColor = Color.Transparent;
+            Height = 24;
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (SectionType == "video")
+            {
+                // Vector Monitor Icon
+                var screenRect = new Rectangle(0, 3, 15, 11);
+                using var p = new Pen(AccentColor, 1.4f);
+                using var path = MainForm.CreateRoundedRectangle(screenRect, 2);
+                g.DrawPath(p, path);
+                g.DrawLine(p, 7, 14, 7, 17);
+                g.DrawLine(p, 4, 17, 11, 17);
+            }
+            else if (SectionType == "audio")
+            {
+                // Vector Audio Waveform
+                using var b = new SolidBrush(AccentColor);
+                int[] heights = new int[] { 5, 11, 15, 9, 13, 7 };
+                for (int i = 0; i < heights.Length; i++)
+                {
+                    int h = heights[i];
+                    int x = i * 3;
+                    int y = (Height - h) / 2;
+                    g.FillRectangle(b, x, y, 2, h);
+                }
+            }
+
+            var textRect = new Rectangle(22, 0, Width - 22, Height);
+            TextRenderer.DrawText(g, Title, Font, textRect, AccentColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         }
     }
 
@@ -140,7 +287,7 @@ namespace LabRecorder
         private ModernButton _btnRecord = null!;
         private ModernButton _btnPause = null!;
         private ModernButton _btnStop = null!;
-        private CheckBox _chkCountdown = null!;
+        private ModernToggle _chkCountdown = null!;
         private Label _lblLogoBadge = null!;
         private ModernButton _btnUpdate = null!;
         private UpdateInfo? _latestUpdateInfo;
@@ -155,7 +302,7 @@ namespace LabRecorder
         private ComboBox _cmbScreen = null!;
         private ModernButton _btnSelectArea = null!;
         private ComboBox _cmbQuality = null!;
-        private CheckBox _chkFaceCam = null!;
+        private ModernToggle _chkFaceCam = null!;
         private PictureBox _picFaceCamPreview = null!;
         private ComboBox _cmbCamCorner = null!;
         private ComboBox _cmbCamSize = null!;
@@ -163,12 +310,12 @@ namespace LabRecorder
 
         // UI Controls - Right Column (Audio & Sound)
         private ModernCard _cardAudio = null!;
-        private CheckBox _chkMic = null!;
+        private ModernToggle _chkMic = null!;
         private ComboBox _cmbMicDevice = null!;
         private Label _lblMicDevice = null!;
         private Panel _pnlMicMeter = null!;
         private Label _lblDbValue = null!;
-        private CheckBox _chkSysAudio = null!;
+        private ModernToggle _chkSysAudio = null!;
 
         // UI Controls - Finished Recording Drawer
         private ModernCard _pnlFinished = null!;
@@ -463,7 +610,7 @@ namespace LabRecorder
             Size = new Size(860, 590);
             MinimumSize = new Size(800, 520);
             StartPosition = FormStartPosition.CenterScreen;
-            BackColor = Color.FromArgb(11, 14, 20);
+            BackColor = Color.FromArgb(9, 11, 16); // Obsidian base canvas (#090B10)
             ForeColor = Color.FromArgb(241, 245, 249);
             Font = new Font("Segoe UI", 9.25f, FontStyle.Regular);
             Padding = new Padding(14, 10, 14, 12);
@@ -492,8 +639,8 @@ namespace LabRecorder
             {
                 Dock = DockStyle.Top,
                 Height = 98,
-                CardBackground = Color.FromArgb(18, 23, 33),
-                BorderColor = Color.FromArgb(36, 44, 62),
+                CardBackground = Color.FromArgb(16, 20, 29),
+                BorderColor = Color.FromArgb(32, 40, 58),
                 BorderRadius = 12,
                 Padding = new Padding(16, 10, 16, 10)
             };
@@ -501,7 +648,7 @@ namespace LabRecorder
             _lblTimer = new Label
             {
                 Text = "00:00",
-                Font = new Font("Segoe UI", 30f, FontStyle.Bold),
+                Font = new Font("Consolas", 30f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(148, 163, 184),
                 AutoSize = true,
                 Location = new Point(16, 10)
@@ -509,9 +656,9 @@ namespace LabRecorder
 
             _lblStatusPill = new Label
             {
-                Text = "● READY",
+                Text = "READY",
                 Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(52, 211, 153),
+                ForeColor = Color.FromArgb(16, 185, 129),
                 AutoSize = true,
                 Location = new Point(20, 68)
             };
@@ -520,10 +667,10 @@ namespace LabRecorder
             {
                 Text = "● Record [F9]",
                 Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(220, 38, 38),   // Vibrant Red
-                HoverColor = Color.FromArgb(239, 68, 68),
-                PressedColor = Color.FromArgb(185, 28, 28),
-                BorderColor = Color.FromArgb(248, 113, 113),
+                NormalColor = Color.FromArgb(225, 29, 72),   // Studio Crimson Ember (#E11D48)
+                HoverColor = Color.FromArgb(244, 63, 94),
+                PressedColor = Color.FromArgb(190, 18, 60),
+                BorderColor = Color.FromArgb(251, 113, 133),
                 Size = new Size(130, 42),
                 Location = new Point(200, 18)
             };
@@ -533,10 +680,10 @@ namespace LabRecorder
             {
                 Text = "⏸ Pause",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(28, 34, 48),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(22, 27, 38),
-                BorderColor = Color.FromArgb(48, 58, 80),
+                NormalColor = Color.FromArgb(20, 25, 36),
+                HoverColor = Color.FromArgb(32, 40, 58),
+                PressedColor = Color.FromArgb(14, 18, 26),
+                BorderColor = Color.FromArgb(42, 52, 74),
                 Size = new Size(105, 42),
                 Location = new Point(338, 18),
                 Enabled = false
@@ -547,25 +694,23 @@ namespace LabRecorder
             {
                 Text = "⏹ Stop [F10]",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(28, 34, 48),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(22, 27, 38),
-                BorderColor = Color.FromArgb(48, 58, 80),
+                NormalColor = Color.FromArgb(20, 25, 36),
+                HoverColor = Color.FromArgb(32, 40, 58),
+                PressedColor = Color.FromArgb(14, 18, 26),
+                BorderColor = Color.FromArgb(42, 52, 74),
                 Size = new Size(110, 42),
                 Location = new Point(450, 18),
                 Enabled = false
             };
             _btnStop.Click += BtnStop_Click;
 
-            _chkCountdown = new CheckBox
+            _chkCountdown = new ModernToggle
             {
-                Text = "⏱ 3-sec countdown",
-                Font = new Font("Segoe UI", 8.5f),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                AutoSize = true,
+                LabelText = "3s Countdown",
                 Location = new Point(202, 68),
+                Size = new Size(160, 24),
                 Checked = false,
-                Cursor = Cursors.Hand
+                ActiveTrackColor = Color.FromArgb(56, 189, 248)
             };
 
             _cardTop.Controls.Add(_lblTimer);
@@ -612,10 +757,10 @@ namespace LabRecorder
             {
                 Text = $"{UpdateService.CurrentVersion} 🔄",
                 Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(24, 30, 44),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(18, 22, 32),
-                BorderColor = Color.FromArgb(51, 65, 85),
+                NormalColor = Color.FromArgb(20, 26, 38),
+                HoverColor = Color.FromArgb(32, 42, 60),
+                PressedColor = Color.FromArgb(14, 18, 28),
+                BorderColor = Color.FromArgb(42, 54, 76),
                 ForeColor = Color.FromArgb(148, 163, 184),
                 BorderRadius = 6,
                 Size = new Size(86, 22),
@@ -659,42 +804,42 @@ namespace LabRecorder
             _cardVideo = new ModernCard
             {
                 Dock = DockStyle.Fill,
-                CardBackground = Color.FromArgb(18, 23, 33),
-                BorderColor = Color.FromArgb(36, 44, 62),
+                CardBackground = Color.FromArgb(16, 20, 29),
+                BorderColor = Color.FromArgb(32, 40, 58),
                 BorderRadius = 12,
                 Padding = new Padding(16, 12, 16, 12)
             };
 
-            var lblVideoHeader = new Label
+            var hdrVideo = new SectionHeader
             {
-                Text = "🖥️  DISPLAY & CAPTURE",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(56, 189, 248), // Sky Blue
+                Title = "CAPTURE & DISPLAY",
+                SectionType = "video",
+                AccentColor = Color.FromArgb(56, 189, 248),
                 Location = new Point(14, 12),
-                AutoSize = true
+                Size = new Size(260, 24)
             };
 
             var divVideo = new Panel
             {
-                Location = new Point(14, 34),
+                Location = new Point(14, 38),
                 Height = 1,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(36, 44, 62)
+                BackColor = Color.FromArgb(28, 35, 50)
             };
 
             var lblScreen = new Label
             {
                 Text = "Display Source:",
                 Font = new Font("Segoe UI", 8.5f),
-                ForeColor = Color.FromArgb(203, 213, 225),
-                Location = new Point(14, 42),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Location = new Point(14, 46),
                 AutoSize = true
             };
 
             _cmbScreen = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(14, 62),
+                Location = new Point(14, 66),
                 Width = 265
             };
             SetupModernComboBox(_cmbScreen);
@@ -702,14 +847,14 @@ namespace LabRecorder
 
             _btnSelectArea = new ModernButton
             {
-                Text = "📐 Area",
+                Text = "Area Crop",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(28, 34, 48),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(22, 27, 38),
+                NormalColor = Color.FromArgb(20, 25, 36),
+                HoverColor = Color.FromArgb(32, 40, 58),
+                PressedColor = Color.FromArgb(14, 18, 26),
                 BorderColor = Color.FromArgb(56, 189, 248),
                 Size = new Size(85, 28),
-                Location = new Point(285, 62)
+                Location = new Point(285, 66)
             };
             _btnSelectArea.Click += (s, e) => LaunchAreaSelector();
 
@@ -717,15 +862,15 @@ namespace LabRecorder
             {
                 Text = "Quality & Framerate:",
                 Font = new Font("Segoe UI", 8.5f),
-                ForeColor = Color.FromArgb(203, 213, 225),
-                Location = new Point(14, 100),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Location = new Point(14, 104),
                 AutoSize = true
             };
 
             _cmbQuality = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(14, 120),
+                Location = new Point(14, 124),
                 Width = 356
             };
             _cmbQuality.Items.Add("Ultra — Native 60 FPS (Pristine, ~100 MB/min)");
@@ -735,15 +880,13 @@ namespace LabRecorder
             _cmbQuality.SelectedIndex = 1; // Best (1080p60) default
             SetupModernComboBox(_cmbQuality);
 
-            _chkFaceCam = new CheckBox
+            _chkFaceCam = new ModernToggle
             {
-                Text = "📷 Circular Face Cam Overlay",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(241, 245, 249),
-                Location = new Point(14, 162),
-                AutoSize = true,
+                LabelText = "Circular Face Cam Overlay",
+                Location = new Point(14, 160),
+                Size = new Size(356, 26),
                 Checked = false,
-                Cursor = Cursors.Hand
+                ActiveTrackColor = Color.FromArgb(56, 189, 248)
             };
             _chkFaceCam.CheckedChanged += ChkFaceCam_CheckedChanged;
 
@@ -759,7 +902,7 @@ namespace LabRecorder
             {
                 Size = new Size(105, 105),
                 Location = new Point(2, 4),
-                BackColor = Color.FromArgb(14, 17, 24)
+                BackColor = Color.FromArgb(12, 16, 24)
             };
             _picFaceCamPreview.Paint += PicFaceCamPreview_Paint;
 
@@ -767,7 +910,7 @@ namespace LabRecorder
             {
                 Text = "Corner Position:",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = Color.FromArgb(203, 213, 225),
+                ForeColor = Color.FromArgb(148, 163, 184),
                 Location = new Point(120, 6),
                 AutoSize = true
             };
@@ -789,7 +932,7 @@ namespace LabRecorder
             {
                 Text = "Overlay Size:",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = Color.FromArgb(203, 213, 225),
+                ForeColor = Color.FromArgb(148, 163, 184),
                 Location = new Point(120, 60),
                 AutoSize = true
             };
@@ -812,7 +955,7 @@ namespace LabRecorder
             _pnlFaceCamSettings.Controls.Add(lblSize);
             _pnlFaceCamSettings.Controls.Add(_cmbCamSize);
 
-            _cardVideo.Controls.Add(lblVideoHeader);
+            _cardVideo.Controls.Add(hdrVideo);
             _cardVideo.Controls.Add(divVideo);
             _cardVideo.Controls.Add(lblScreen);
             _cardVideo.Controls.Add(_cmbScreen);
@@ -830,38 +973,36 @@ namespace LabRecorder
             _cardAudio = new ModernCard
             {
                 Dock = DockStyle.Fill,
-                CardBackground = Color.FromArgb(18, 23, 33),
-                BorderColor = Color.FromArgb(36, 44, 62),
+                CardBackground = Color.FromArgb(16, 20, 29),
+                BorderColor = Color.FromArgb(32, 40, 58),
                 BorderRadius = 12,
                 Padding = new Padding(16, 12, 16, 12)
             };
 
-            var lblAudioHeader = new Label
+            var hdrAudio = new SectionHeader
             {
-                Text = "🎙️  AUDIO & SOUND",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(56, 189, 248),
+                Title = "AUDIO & MONITORING",
+                SectionType = "audio",
+                AccentColor = Color.FromArgb(56, 189, 248),
                 Location = new Point(14, 12),
-                AutoSize = true
+                Size = new Size(260, 24)
             };
 
             var divAudio = new Panel
             {
-                Location = new Point(14, 34),
+                Location = new Point(14, 38),
                 Height = 1,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(36, 44, 62)
+                BackColor = Color.FromArgb(28, 35, 50)
             };
 
-            _chkMic = new CheckBox
+            _chkMic = new ModernToggle
             {
-                Text = "🎤 Microphone Input",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(241, 245, 249),
-                Location = new Point(14, 42),
-                AutoSize = true,
+                LabelText = "Microphone Input",
+                Location = new Point(14, 44),
+                Size = new Size(356, 26),
                 Checked = true,
-                Cursor = Cursors.Hand
+                ActiveTrackColor = Color.FromArgb(16, 185, 129)
             };
             _chkMic.CheckedChanged += ChkMic_CheckedChanged;
 
@@ -869,8 +1010,8 @@ namespace LabRecorder
             {
                 Text = "Microphone Device:",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = Color.FromArgb(203, 213, 225),
-                Location = new Point(14, 70),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Location = new Point(14, 72),
                 AutoSize = true,
                 Visible = false
             };
@@ -878,7 +1019,7 @@ namespace LabRecorder
             _cmbMicDevice = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(14, 88),
+                Location = new Point(14, 90),
                 Width = 356,
                 Visible = false
             };
@@ -887,9 +1028,9 @@ namespace LabRecorder
 
             var lblMeter = new Label
             {
-                Text = "Mic Live Level (Post-Gain +18dB):",
+                Text = "Live Mic Level (+18dB Studio Gain):",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = Color.FromArgb(203, 213, 225),
+                ForeColor = Color.FromArgb(148, 163, 184),
                 Location = new Point(14, 124),
                 AutoSize = true
             };
@@ -897,8 +1038,8 @@ namespace LabRecorder
             _lblDbValue = new Label
             {
                 Text = "-inf dB",
-                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(52, 211, 153),
+                Font = new Font("Consolas", 8f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(16, 185, 129),
                 Location = new Point(280, 124),
                 Size = new Size(90, 16),
                 TextAlign = ContentAlignment.TopRight
@@ -908,44 +1049,42 @@ namespace LabRecorder
             {
                 Location = new Point(14, 144),
                 Size = new Size(356, 24),
-                BackColor = Color.FromArgb(14, 17, 24)
+                BackColor = Color.FromArgb(12, 16, 24)
             };
             _pnlMicMeter.Paint += PnlMicMeter_Paint;
 
             var lblMeterTicks = new Label
             {
                 Text = "-36 dB              -24 dB              -12 dB        -6 dB       0 dB",
-                Font = new Font("Segoe UI", 7.5f),
-                ForeColor = Color.FromArgb(90, 105, 128),
+                Font = new Font("Consolas", 7.5f),
+                ForeColor = Color.FromArgb(71, 85, 105),
                 Location = new Point(14, 172),
                 AutoSize = true
             };
 
-            _chkSysAudio = new CheckBox
+            _chkSysAudio = new ModernToggle
             {
-                Text = "🔊 Record System Audio (Speakers / Headphones)",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(241, 245, 249),
+                LabelText = "System Audio (WASAPI Loopback)",
                 Location = new Point(14, 202),
-                AutoSize = true,
+                Size = new Size(356, 26),
                 Checked = true,
-                Cursor = Cursors.Hand
+                ActiveTrackColor = Color.FromArgb(16, 185, 129)
             };
 
             var lblSysAudioHint = new Label
             {
                 Text = "Captures games, Discord, Spotify & browser audio directly via WASAPI loopback.",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(34, 226),
-                Size = new Size(336, 32)
+                ForeColor = Color.FromArgb(100, 116, 139),
+                Location = new Point(48, 228),
+                Size = new Size(320, 32)
             };
 
             var pnlHotkeyPill = new Panel
             {
                 Location = new Point(14, 268),
                 Size = new Size(356, 32),
-                BackColor = Color.FromArgb(14, 18, 27)
+                BackColor = Color.FromArgb(12, 16, 24)
             };
             pnlHotkeyPill.Paint += (s, pe) =>
             {
@@ -953,20 +1092,41 @@ namespace LabRecorder
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 var r = new Rectangle(0, 0, pnlHotkeyPill.Width - 1, pnlHotkeyPill.Height - 1);
                 using var p = CreateRoundedRectangle(r, 6);
-                using var pen = new Pen(Color.FromArgb(40, 50, 70), 1f);
+                using var bg = new SolidBrush(Color.FromArgb(12, 16, 24));
+                g.FillPath(bg, p);
+                using var pen = new Pen(Color.FromArgb(32, 42, 60), 1f);
                 g.DrawPath(pen, p);
-            };
-            var lblHotkeyText = new Label
-            {
-                Text = "⌨️ Hotkeys: F9 Start/Pause  •  F10 Stop  •  Zero Frame Drops",
-                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(125, 211, 252),
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            pnlHotkeyPill.Controls.Add(lblHotkeyText);
 
-            _cardAudio.Controls.Add(lblAudioHeader);
+                using var keyBg = new SolidBrush(Color.FromArgb(24, 32, 48));
+                using var keyBorder = new Pen(Color.FromArgb(50, 66, 96), 1f);
+                using var keyFont = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+                using var textFont = new Font("Segoe UI", 8f);
+
+                int curX = 12;
+                var f9Rect = new Rectangle(curX, (pnlHotkeyPill.Height - 18) / 2, 28, 18);
+                using var f9Path = CreateRoundedRectangle(f9Rect, 4);
+                g.FillPath(keyBg, f9Path);
+                g.DrawPath(keyBorder, f9Path);
+                TextRenderer.DrawText(g, "F9", keyFont, f9Rect, Color.FromArgb(220, 230, 245), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                curX += 34;
+
+                TextRenderer.DrawText(g, "Record / Pause", textFont, new Point(curX, (pnlHotkeyPill.Height - 14) / 2), Color.FromArgb(148, 163, 184));
+                curX += 95;
+
+                var f10Rect = new Rectangle(curX, (pnlHotkeyPill.Height - 18) / 2, 32, 18);
+                using var f10Path = CreateRoundedRectangle(f10Rect, 4);
+                g.FillPath(keyBg, f10Path);
+                g.DrawPath(keyBorder, f10Path);
+                TextRenderer.DrawText(g, "F10", keyFont, f10Rect, Color.FromArgb(220, 230, 245), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                curX += 38;
+
+                TextRenderer.DrawText(g, "Stop", textFont, new Point(curX, (pnlHotkeyPill.Height - 14) / 2), Color.FromArgb(148, 163, 184));
+                curX += 36;
+
+                TextRenderer.DrawText(g, "• AMF 60 FPS", textFont, new Point(curX, (pnlHotkeyPill.Height - 14) / 2), Color.FromArgb(56, 189, 248));
+            };
+
+            _cardAudio.Controls.Add(hdrAudio);
             _cardAudio.Controls.Add(divAudio);
             _cardAudio.Controls.Add(_chkMic);
             _cardAudio.Controls.Add(_lblMicDevice);
@@ -991,8 +1151,8 @@ namespace LabRecorder
             {
                 Dock = DockStyle.Bottom,
                 Height = 125,
-                CardBackground = Color.FromArgb(16, 21, 30),
-                BorderColor = Color.FromArgb(52, 211, 153), // Mint Accent
+                CardBackground = Color.FromArgb(16, 20, 29),
+                BorderColor = Color.FromArgb(16, 185, 129), // Emerald
                 BorderRadius = 12,
                 Padding = new Padding(14, 10, 14, 10),
                 Visible = false
@@ -1000,9 +1160,9 @@ namespace LabRecorder
 
             var lblFinishedTitle = new Label
             {
-                Text = "🎉  RECORDING SAVED INSTANTLY",
+                Text = "RECORDING SAVED",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(52, 211, 153),
+                ForeColor = Color.FromArgb(16, 185, 129),
                 Location = new Point(14, 8),
                 AutoSize = true
             };
@@ -1011,7 +1171,7 @@ namespace LabRecorder
             {
                 Size = new Size(140, 78),
                 Location = new Point(14, 30),
-                BackColor = Color.FromArgb(11, 14, 20),
+                BackColor = Color.FromArgb(12, 16, 24),
                 SizeMode = PictureBoxSizeMode.Zoom
             };
             _picThumbnail.Paint += PicThumbnail_Paint;
@@ -1027,8 +1187,8 @@ namespace LabRecorder
 
             _lblFinishedDuration = new Label
             {
-                Text = "⏱ 00:00",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Text = "Duration: 00:00",
+                Font = new Font("Consolas", 8.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(56, 189, 248),
                 Location = new Point(166, 52),
                 AutoSize = true
@@ -1036,62 +1196,62 @@ namespace LabRecorder
 
             _lblFinishedSize = new Label
             {
-                Text = "💾 0.0 MB",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(167, 243, 208),
-                Location = new Point(270, 52),
+                Text = "Size: 0.0 MB",
+                Font = new Font("Consolas", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 211, 153),
+                Location = new Point(285, 52),
                 AutoSize = true
             };
 
             _btnPlay = new ModernButton
             {
-                Text = "▶ Play Video",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Text = "Play Video",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 NormalColor = Color.FromArgb(37, 99, 235), // Primary Blue
                 HoverColor = Color.FromArgb(59, 130, 246),
                 PressedColor = Color.FromArgb(29, 78, 216),
-                BorderColor = Color.Transparent,
-                Size = new Size(105, 32),
+                BorderColor = Color.FromArgb(96, 165, 250),
+                Size = new Size(100, 32),
                 Location = new Point(166, 78)
             };
             _btnPlay.Click += BtnPlay_Click;
 
             _btnOpenFolder = new ModernButton
             {
-                Text = "📁 Show in Folder",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(28, 34, 48),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(22, 27, 38),
-                BorderColor = Color.FromArgb(48, 58, 80),
-                Size = new Size(125, 32),
-                Location = new Point(278, 78)
+                Text = "Reveal in Folder",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(20, 25, 36),
+                HoverColor = Color.FromArgb(32, 40, 58),
+                PressedColor = Color.FromArgb(14, 18, 26),
+                BorderColor = Color.FromArgb(42, 52, 74),
+                Size = new Size(120, 32),
+                Location = new Point(274, 78)
             };
             _btnOpenFolder.Click += BtnOpenFolder_Click;
 
             _btnCopyFile = new ModernButton
             {
-                Text = "📋 Copy File",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(28, 34, 48),
-                HoverColor = Color.FromArgb(42, 50, 70),
-                PressedColor = Color.FromArgb(22, 27, 38),
-                BorderColor = Color.FromArgb(48, 58, 80),
-                Size = new Size(105, 32),
-                Location = new Point(410, 78)
+                Text = "Copy Path",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(20, 25, 36),
+                HoverColor = Color.FromArgb(32, 40, 58),
+                PressedColor = Color.FromArgb(14, 18, 26),
+                BorderColor = Color.FromArgb(42, 52, 74),
+                Size = new Size(95, 32),
+                Location = new Point(402, 78)
             };
             _btnCopyFile.Click += BtnCopyFile_Click;
 
             _btnAutoEdit = new ModernButton
             {
-                Text = "✨ Auto-Edit (Free)",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                NormalColor = Color.FromArgb(22, 163, 74), // Emerald
-                HoverColor = Color.FromArgb(34, 197, 94),
-                PressedColor = Color.FromArgb(21, 128, 61),
-                BorderColor = Color.FromArgb(74, 222, 128),
-                Size = new Size(140, 32),
-                Location = new Point(522, 78)
+                Text = "Auto-Edit (Free)",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(16, 185, 129),
+                HoverColor = Color.FromArgb(52, 211, 153),
+                PressedColor = Color.FromArgb(5, 150, 105),
+                BorderColor = Color.FromArgb(110, 231, 183),
+                Size = new Size(125, 32),
+                Location = new Point(505, 78)
             };
             _btnAutoEdit.Click += BtnAutoEdit_Click;
 
@@ -1137,14 +1297,17 @@ namespace LabRecorder
                 _cmbQuality.Width = innerW;
                 _cmbScreen.Width = Math.Max(240, innerW - 95);
                 _btnSelectArea.Left = _cmbScreen.Right + 8;
+                _chkFaceCam.Width = innerW;
                 _pnlFaceCamSettings.Width = innerW;
                 _cmbCamCorner.Width = Math.Max(180, innerW - 126);
                 _cmbCamSize.Width = Math.Max(180, innerW - 126);
 
                 int innerRightW = Math.Max(340, _cardAudio.Width - 32);
+                _chkMic.Width = innerRightW;
                 _cmbMicDevice.Width = innerRightW;
                 _pnlMicMeter.Width = innerRightW;
                 _lblDbValue.Left = innerRightW - 80;
+                _chkSysAudio.Width = innerRightW;
             }
         }
 
@@ -1153,7 +1316,8 @@ namespace LabRecorder
             if (_engine.IsRecording && !_engine.IsPaused)
             {
                 _pulseGlowState = !_pulseGlowState;
-                _lblStatusPill.ForeColor = _pulseGlowState ? Color.FromArgb(239, 68, 68) : Color.FromArgb(252, 165, 165);
+                _lblStatusPill.ForeColor = _pulseGlowState ? Color.FromArgb(225, 29, 72) : Color.FromArgb(251, 113, 133);
+                _lblTimer.ForeColor = _pulseGlowState ? Color.White : Color.FromArgb(220, 230, 245);
                 _lblStatusPill.Invalidate();
             }
         }
@@ -1178,12 +1342,12 @@ namespace LabRecorder
             }
             else
             {
-                using var brush = new SolidBrush(Color.FromArgb(14, 18, 27));
+                using var brush = new SolidBrush(Color.FromArgb(12, 16, 24));
                 g.FillEllipse(brush, rect);
-                using var pen = new Pen(Color.FromArgb(45, 55, 75), 1.5f);
+                using var pen = new Pen(Color.FromArgb(32, 42, 60), 1.5f);
                 g.DrawEllipse(pen, rect);
-                using var font = new Font("Segoe UI", 8f);
-                TextRenderer.DrawText(g, "📷 Live", font, rect, Color.FromArgb(148, 163, 184), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                using var font = new Font("Segoe UI", 8f, FontStyle.Bold);
+                TextRenderer.DrawText(g, "Camera Ready", font, rect, Color.FromArgb(100, 116, 139), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
         }
 
@@ -1200,12 +1364,12 @@ namespace LabRecorder
             }
             else
             {
-                using var b = new SolidBrush(Color.FromArgb(11, 14, 20));
+                using var b = new SolidBrush(Color.FromArgb(12, 16, 24));
                 g.FillRectangle(b, rect);
             }
             g.ResetClip();
 
-            using var pen = new Pen(Color.FromArgb(45, 55, 75), 1.2f);
+            using var pen = new Pen(Color.FromArgb(36, 46, 66), 1.2f);
             g.DrawPath(pen, path);
         }
 
@@ -1225,7 +1389,7 @@ namespace LabRecorder
             {
                 var s = screens[i];
                 string label = s.Primary
-                    ? $"🎮 Primary Display ({s.Bounds.Width}x{s.Bounds.Height})"
+                    ? $"Primary Display ({s.Bounds.Width}x{s.Bounds.Height})"
                     : $"Display {i + 1} ({s.Bounds.Width}x{s.Bounds.Height})";
 
                 var target = new ScreenTarget
@@ -1271,7 +1435,7 @@ namespace LabRecorder
             // Trigger item to select custom area with mouse
             _cmbScreen.Items.Add(new ScreenTarget
             {
-                Name = "📐 Select Area with Mouse...",
+                Name = "Select Custom Region...",
                 Bounds = Rectangle.Empty,
                 IsCustomRegion = true,
                 MonitorIndex = -99
@@ -1453,10 +1617,10 @@ namespace LabRecorder
             if (_chkCountdown.Checked)
             {
                 _countdownValue = 3;
-                _lblStatusPill.Text = "⏳ STARTING IN 3s...";
-                _lblStatusPill.ForeColor = Color.FromArgb(251, 191, 36);
+                _lblStatusPill.Text = "COUNTDOWN 3s...";
+                _lblStatusPill.ForeColor = Color.FromArgb(245, 158, 11);
                 _lblTimer.Text = "00:03";
-                _lblTimer.ForeColor = Color.FromArgb(251, 191, 36);
+                _lblTimer.ForeColor = Color.FromArgb(245, 158, 11);
                 _btnRecord.Enabled = false;
                 _btnPause.Enabled = false;
                 _btnStop.Enabled = true;
@@ -1473,7 +1637,7 @@ namespace LabRecorder
             _countdownValue--;
             if (_countdownValue > 0)
             {
-                _lblStatusPill.Text = $"⏳ STARTING IN {_countdownValue}s...";
+                _lblStatusPill.Text = $"COUNTDOWN {_countdownValue}s...";
                 _lblTimer.Text = $"00:0{_countdownValue}";
             }
             else
@@ -1493,11 +1657,11 @@ namespace LabRecorder
                 }
                 else if (target.IsCustomRegion)
                 {
-                    _btnSelectArea.Text = "📐 Re-select";
+                    _btnSelectArea.Text = "Crop Area";
                 }
                 else
                 {
-                    _btnSelectArea.Text = "📐 Area";
+                    _btnSelectArea.Text = "Area Crop";
                 }
             }
         }
@@ -1524,7 +1688,7 @@ namespace LabRecorder
 
             if (!selected.IsEmpty)
             {
-                string label = $"📍 Area ({selected.Width}×{selected.Height})";
+                string label = $"Custom Region ({selected.Width}×{selected.Height})";
 
                 if (_customAreaTarget == null)
                 {
@@ -1551,7 +1715,7 @@ namespace LabRecorder
                 }
 
                 _cmbScreen.SelectedItem = _customAreaTarget;
-                _btnSelectArea.Text = "📐 Re-select";
+                _btnSelectArea.Text = "Crop Area";
             }
             else
             {
@@ -1600,10 +1764,10 @@ namespace LabRecorder
             }
 
             _pnlFinished.Visible = false;
-            _lblStatusPill.Text = "● REC";
-            _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
+            _lblStatusPill.Text = "REC · 60 FPS";
+            _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
             _lblTimer.Text = "00:00";
-            _lblTimer.ForeColor = Color.FromArgb(56, 189, 248);
+            _lblTimer.ForeColor = Color.White;
             _elapsedSeconds = 0;
 
             _engine.StartRecording(
@@ -1623,8 +1787,8 @@ namespace LabRecorder
             Thread.Sleep(250);
             if (!_engine.IsProcessAlive())
             {
-                _lblStatusPill.Text = "● READY";
-                _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                _lblStatusPill.Text = "READY";
+                _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
                 _lblTimer.Text = "00:00";
                 _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
 
@@ -1639,8 +1803,9 @@ namespace LabRecorder
             _btnPause.Enabled = true;
             _btnPause.Text = "⏸ Pause [F9]";
             _btnStop.Enabled = true;
-            _btnStop.NormalColor = Color.FromArgb(185, 28, 28); // Vibrant Stop
-            _btnStop.HoverColor = Color.FromArgb(220, 38, 38);
+            _btnStop.NormalColor = Color.FromArgb(190, 18, 60); // Studio Crimson Stop
+            _btnStop.HoverColor = Color.FromArgb(225, 29, 72);
+            _btnStop.BorderColor = Color.FromArgb(251, 113, 133);
             _btnStop.Invalidate();
 
             // Lock source controls during recording
@@ -1667,18 +1832,18 @@ namespace LabRecorder
             {
                 _engine.PauseRecording();
                 _recTimer.Stop();
-                _lblStatusPill.Text = "⏸ PAUSED";
-                _lblStatusPill.ForeColor = Color.FromArgb(251, 191, 36);
-                _lblTimer.ForeColor = Color.FromArgb(251, 191, 36);
+                _lblStatusPill.Text = "PAUSED";
+                _lblStatusPill.ForeColor = Color.FromArgb(245, 158, 11);
+                _lblTimer.ForeColor = Color.FromArgb(245, 158, 11);
                 _btnPause.Text = "▶ Resume [F9]";
             }
             else
             {
                 _engine.ResumeRecording();
                 _recTimer.Start();
-                _lblStatusPill.Text = "● REC";
-                _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
-                _lblTimer.ForeColor = Color.FromArgb(56, 189, 248);
+                _lblStatusPill.Text = "REC · 60 FPS";
+                _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
+                _lblTimer.ForeColor = Color.White;
                 _btnPause.Text = "⏸ Pause [F9]";
             }
         }
@@ -1688,15 +1853,16 @@ namespace LabRecorder
             if (_countdownTimer.Enabled)
             {
                 _countdownTimer.Stop();
-                _lblStatusPill.Text = "● READY";
-                _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                _lblStatusPill.Text = "READY";
+                _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
                 _lblTimer.Text = "00:00";
                 _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
                 _btnRecord.Enabled = true;
                 _btnPause.Enabled = false;
                 _btnStop.Enabled = false;
-                _btnStop.NormalColor = Color.FromArgb(28, 34, 48);
-                _btnStop.HoverColor = Color.FromArgb(42, 50, 70);
+                _btnStop.NormalColor = Color.FromArgb(20, 25, 36);
+                _btnStop.HoverColor = Color.FromArgb(32, 40, 58);
+                _btnStop.BorderColor = Color.FromArgb(42, 52, 74);
                 _btnStop.Invalidate();
                 return;
             }
@@ -1705,7 +1871,7 @@ namespace LabRecorder
 
             _recTimer.Stop();
             _pulseTimer.Stop();
-            _lblStatusPill.Text = "⏳ SAVING...";
+            _lblStatusPill.Text = "FINALIZING...";
             _lblStatusPill.ForeColor = Color.FromArgb(56, 189, 248);
             Refresh();
 
@@ -1716,8 +1882,9 @@ namespace LabRecorder
             _btnPause.Enabled = false;
             _btnPause.Text = "⏸ Pause [F9]";
             _btnStop.Enabled = false;
-            _btnStop.NormalColor = Color.FromArgb(28, 34, 48);
-            _btnStop.HoverColor = Color.FromArgb(42, 50, 70);
+            _btnStop.NormalColor = Color.FromArgb(20, 25, 36);
+            _btnStop.HoverColor = Color.FromArgb(32, 40, 58);
+            _btnStop.BorderColor = Color.FromArgb(42, 52, 74);
             _btnStop.Invalidate();
 
             // Unlock source controls
@@ -1734,8 +1901,8 @@ namespace LabRecorder
 
             if (_lastResult != null && !string.IsNullOrEmpty(_lastResult.FilePath) && File.Exists(_lastResult.FilePath))
             {
-                _lblStatusPill.Text = "✔ SAVED";
-                _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                _lblStatusPill.Text = "SAVED";
+                _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
                 _lblTimer.ForeColor = Color.FromArgb(148, 163, 184);
                 ShowFinishedCard(_lastResult);
 
@@ -1751,8 +1918,8 @@ namespace LabRecorder
             }
             else
             {
-                _lblStatusPill.Text = "❌ SAVE FAILED";
-                _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
+                _lblStatusPill.Text = "SAVE FAILED";
+                _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
                 string logPath = Path.Combine(Path.GetTempPath(), "labrec_ffmpeg.log");
                 string detail = File.Exists(logPath) ? File.ReadAllText(logPath) : "No diagnostic log available.";
                 if (detail.Length > 800) detail = detail.Substring(detail.Length - 800);
@@ -1778,8 +1945,8 @@ namespace LabRecorder
             {
                 _recTimer.Stop();
                 _pulseTimer.Stop();
-                _lblStatusPill.Text = "⚠️ STOPPED UNEXPECTEDLY";
-                _lblStatusPill.ForeColor = Color.FromArgb(239, 68, 68);
+                _lblStatusPill.Text = "STOPPED UNEXPECTEDLY";
+                _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
                 BtnStop_Click(this, EventArgs.Empty);
                 return;
             }
@@ -1799,8 +1966,8 @@ namespace LabRecorder
             }
 
             _lblFinishedName.Text = result.FileName;
-            _lblFinishedDuration.Text = $"⏱ {result.DurationFormatted}";
-            _lblFinishedSize.Text = $"💾 {result.FileSizeFormatted}";
+            _lblFinishedDuration.Text = $"Duration: {result.DurationFormatted}";
+            _lblFinishedSize.Text = $"Size: {result.FileSizeFormatted}";
             _picThumbnail.Image = result.Thumbnail;
             _picThumbnail.Invalidate();
             _pnlFinished.Visible = true;
@@ -1869,8 +2036,8 @@ namespace LabRecorder
                 string engineDir = @"c:\Users\velaz\Downloads\AI\Antigravity\Vid Editor";
 
                 _btnAutoEdit.Enabled = false;
-                _btnAutoEdit.Text = "⏳ Editing...";
-                _lblStatusPill.Text = "⏳ AUTO-EDITING...";
+                _btnAutoEdit.Text = "Editing...";
+                _lblStatusPill.Text = "AUTO-EDITING...";
                 _lblStatusPill.ForeColor = Color.FromArgb(56, 189, 248);
 
                 bool success = false;
@@ -1897,12 +2064,12 @@ namespace LabRecorder
                 });
 
                 _btnAutoEdit.Enabled = true;
-                _btnAutoEdit.Text = "✨ Auto-Edit (Free)";
+                _btnAutoEdit.Text = "Auto-Edit (Free)";
 
                 if (success)
                 {
-                    _lblStatusPill.Text = "✔ EDITED";
-                    _lblStatusPill.ForeColor = Color.FromArgb(52, 211, 153);
+                    _lblStatusPill.Text = "EDITED";
+                    _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
 
                     var fi = new FileInfo(outputFile);
                     var newDuration = _engine.ExtractDuration(outputFile);
