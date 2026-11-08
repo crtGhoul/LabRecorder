@@ -39,6 +39,13 @@ namespace LabRecorder
                 MessageBox.Show(msg, "Lab Recorder Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
 
+            if (args.Length > 0 && args[0] == "--test-ui-mouse")
+            {
+                AttachConsole(-1);
+                RunUiMouseTest();
+                return;
+            }
+
             if (args.Length > 0 && args[0] == "--acceptance-test")
             {
                 AttachConsole(-1);
@@ -386,6 +393,63 @@ namespace LabRecorder
             Console.WriteLine("\n=================================================");
             Console.WriteLine("ALL AUTOMATED TESTS COMPLETED!");
             Console.WriteLine("=================================================");
+        }
+
+        static void RunUiMouseTest()
+        {
+            void Log(string msg)
+            {
+                Console.WriteLine(msg);
+                try { File.AppendAllText("ui_test_report.log", msg + Environment.NewLine); } catch {}
+            }
+            try { File.Delete("ui_test_report.log"); } catch {}
+
+            Log("=================================================");
+            Log("LAB RECORDER - UI MOUSE INTERACTION VERIFICATION");
+            Log("=================================================");
+
+            // 1. Test ModernButton mouse click
+            var btn = new ModernButton { Size = new Size(120, 40) };
+            bool btnClicked = false;
+            btn.Click += (s, e) => btnClicked = true;
+
+            var miMouseDown = typeof(ModernButton).GetMethod("OnMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var miMouseUp = typeof(ModernButton).GetMethod("OnMouseUp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+            var downEvent = new MouseEventArgs(MouseButtons.Left, 1, 20, 20, 0);
+            var upEvent = new MouseEventArgs(MouseButtons.Left, 1, 20, 20, 0);
+
+            miMouseDown.Invoke(btn, new object[] { downEvent });
+            miMouseUp.Invoke(btn, new object[] { upEvent });
+
+            Log($"[TEST 1] ModernButton mouse click fired .Click: {btnClicked}");
+            if (!btnClicked) throw new Exception("ModernButton failed to fire Click event on mouse release!");
+
+            // 2. Test ModernToggle mouse click
+            var toggle = new ModernToggle { Size = new Size(200, 26), Checked = false };
+            bool toggleChanged = false;
+            toggle.CheckedChanged += (s, e) => toggleChanged = true;
+
+            var miToggleDown = typeof(ModernToggle).GetMethod("OnMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            miToggleDown.Invoke(toggle, new object[] { downEvent });
+
+            Log($"[TEST 2] ModernToggle mouse down changed state: Checked={toggle.Checked}, Event={toggleChanged}");
+            if (!toggle.Checked || !toggleChanged) throw new Exception("ModernToggle failed to toggle on mouse down!");
+
+            // 3. Test ModernComboBox item selection
+            var combo = new ModernComboBox { Size = new Size(200, 28) };
+            combo.Items.Add("Alpha");
+            combo.Items.Add("Beta");
+            combo.Items.Add("Gamma");
+            combo.SelectedIndex = 0;
+            bool comboChanged = false;
+            combo.SelectedIndexChanged += (s, e) => comboChanged = true;
+            combo.SelectedIndex = 1;
+
+            Log($"[TEST 3] ModernComboBox selection switched: Selected={combo.SelectedItem}, Event={comboChanged}");
+            if ((string?)combo.SelectedItem != "Beta" || !comboChanged) throw new Exception("ModernComboBox failed to change selection!");
+
+            Log(">> ALL UI MOUSE INTERACTION TESTS PASSED 100%! <<");
         }
 
         static long MeasureProcessTreeMemory(int screenPid, int camPid = 0)

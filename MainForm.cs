@@ -31,6 +31,7 @@ namespace LabRecorder
 
         private bool _isHovered;
         private bool _isPressed;
+        private bool _clickFired;
 
         public ModernButton()
         {
@@ -40,13 +41,70 @@ namespace LabRecorder
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9.25f, FontStyle.Bold);
             ForeColor = Color.White;
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            SetStyle(ControlStyles.UserPaint |
+                     ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.StandardClick |
+                     ControlStyles.Selectable |
+                     ControlStyles.SupportsTransparentBackColor, true);
         }
 
-        protected override void OnMouseEnter(EventArgs e) { _isHovered = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { _isHovered = false; Invalidate(); base.OnMouseLeave(e); }
-        protected override void OnMouseDown(MouseEventArgs mevent) { _isPressed = true; Invalidate(); base.OnMouseDown(mevent); }
-        protected override void OnMouseUp(MouseEventArgs mevent) { _isPressed = false; Invalidate(); base.OnMouseUp(mevent); }
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            _isHovered = true;
+            Invalidate();
+            base.OnMouseEnter(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            _isHovered = false;
+            _isPressed = false;
+            Invalidate();
+            base.OnMouseLeave(e);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs mevent)
+        {
+            if (mevent.Button == MouseButtons.Left)
+            {
+                _isPressed = true;
+                Focus();
+                Invalidate();
+            }
+            base.OnMouseDown(mevent);
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            _clickFired = true;
+            base.OnClick(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs mevent)
+        {
+            bool wasPressed = _isPressed;
+            _isPressed = false;
+            Invalidate();
+
+            _clickFired = false;
+            base.OnMouseUp(mevent);
+
+            if (Enabled && wasPressed && mevent.Button == MouseButtons.Left && ClientRectangle.Contains(mevent.Location) && !_clickFired)
+            {
+                OnClick(EventArgs.Empty);
+            }
+        }
+
+        protected override void OnKeyDown(KeyEventArgs kevent)
+        {
+            base.OnKeyDown(kevent);
+            if (Enabled && (kevent.KeyCode == Keys.Space || kevent.KeyCode == Keys.Enter))
+            {
+                OnClick(EventArgs.Empty);
+                kevent.Handled = true;
+            }
+        }
 
         protected override void OnPaint(PaintEventArgs pevent)
         {
