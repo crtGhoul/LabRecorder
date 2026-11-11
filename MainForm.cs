@@ -37,7 +37,6 @@ namespace LabRecorder
         {
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9.25f, FontStyle.Bold);
             ForeColor = Color.White;
@@ -47,6 +46,7 @@ namespace LabRecorder
                      ControlStyles.StandardClick |
                      ControlStyles.Selectable |
                      ControlStyles.SupportsTransparentBackColor, true);
+            try { BackColor = Color.Transparent; } catch { BackColor = Color.FromArgb(20, 25, 36); }
         }
 
         protected override void OnMouseEnter(EventArgs e)
@@ -152,8 +152,8 @@ namespace LabRecorder
 
         public ModernCard()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-            BackColor = Color.Transparent;
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            try { BackColor = Color.Transparent; } catch { BackColor = Color.FromArgb(16, 20, 29); }
             Padding = new Padding(16);
         }
 
@@ -209,7 +209,7 @@ namespace LabRecorder
         public ModernToggle()
         {
             SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-            BackColor = Color.Transparent;
+            try { BackColor = Color.Transparent; } catch { BackColor = Color.FromArgb(16, 20, 29); }
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9f, FontStyle.Bold);
             Size = new Size(240, 26);
@@ -427,7 +427,7 @@ namespace LabRecorder
         public SectionHeader()
         {
             SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-            BackColor = Color.Transparent;
+            try { BackColor = Color.Transparent; } catch { BackColor = Color.FromArgb(16, 20, 29); }
             Height = 24;
             Font = new Font("Segoe UI", 9f, FontStyle.Bold);
         }
@@ -491,6 +491,7 @@ namespace LabRecorder
         private readonly RecorderEngine _engine = new();
         private readonly AudioService _audioService = new();
         private readonly CameraService _cameraService = new();
+        private readonly ClickOverlayForm _clickOverlay = new();
 
         // UI Controls - Top Section
         private ModernCard _cardTop = null!;
@@ -500,6 +501,7 @@ namespace LabRecorder
         private ModernButton _btnPause = null!;
         private ModernButton _btnStop = null!;
         private ModernToggle _chkCountdown = null!;
+        private ModernToggle _chkClickHighlight = null!;
         private Label _lblLogoBadge = null!;
         private ModernButton _btnUpdate = null!;
         private UpdateInfo? _latestUpdateInfo;
@@ -538,6 +540,8 @@ namespace LabRecorder
         private ModernButton _btnPlay = null!;
         private ModernButton _btnOpenFolder = null!;
         private ModernButton _btnCopyFile = null!;
+        private ModernButton _btnStudioCanvas = null!;
+        private ModernButton _btnExportGif = null!;
         private ModernButton _btnAutoEdit = null!;
 
         // State & Timers
@@ -894,8 +898,17 @@ namespace LabRecorder
             {
                 LabelText = "3s Countdown",
                 Location = new Point(202, 68),
-                Size = new Size(160, 24),
+                Size = new Size(150, 24),
                 Checked = false,
+                ActiveTrackColor = Color.FromArgb(56, 189, 248)
+            };
+
+            _chkClickHighlight = new ModernToggle
+            {
+                LabelText = "Click FX Rings",
+                Location = new Point(362, 68),
+                Size = new Size(150, 24),
+                Checked = true,
                 ActiveTrackColor = Color.FromArgb(56, 189, 248)
             };
 
@@ -905,6 +918,7 @@ namespace LabRecorder
             _cardTop.Controls.Add(_btnPause);
             _cardTop.Controls.Add(_btnStop);
             _cardTop.Controls.Add(_chkCountdown);
+            _cardTop.Controls.Add(_chkClickHighlight);
 
             // Studio Branding Logo Badge (Anchor Right)
             var pnlLogo = new Panel
@@ -1387,21 +1401,21 @@ namespace LabRecorder
                 HoverColor = Color.FromArgb(59, 130, 246),
                 PressedColor = Color.FromArgb(29, 78, 216),
                 BorderColor = Color.FromArgb(96, 165, 250),
-                Size = new Size(100, 32),
+                Size = new Size(88, 32),
                 Location = new Point(166, 78)
             };
             _btnPlay.Click += BtnPlay_Click;
 
             _btnOpenFolder = new ModernButton
             {
-                Text = "Reveal in Folder",
+                Text = "Folder",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 NormalColor = Color.FromArgb(20, 25, 36),
                 HoverColor = Color.FromArgb(32, 40, 58),
                 PressedColor = Color.FromArgb(14, 18, 26),
                 BorderColor = Color.FromArgb(42, 52, 74),
-                Size = new Size(120, 32),
-                Location = new Point(274, 78)
+                Size = new Size(76, 32),
+                Location = new Point(258, 78)
             };
             _btnOpenFolder.Click += BtnOpenFolder_Click;
 
@@ -1413,21 +1427,47 @@ namespace LabRecorder
                 HoverColor = Color.FromArgb(32, 40, 58),
                 PressedColor = Color.FromArgb(14, 18, 26),
                 BorderColor = Color.FromArgb(42, 52, 74),
-                Size = new Size(95, 32),
-                Location = new Point(402, 78)
+                Size = new Size(84, 32),
+                Location = new Point(338, 78)
             };
             _btnCopyFile.Click += BtnCopyFile_Click;
 
+            _btnStudioCanvas = new ModernButton
+            {
+                Text = "✨ Studio Canvas",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(79, 70, 229), // Indigo
+                HoverColor = Color.FromArgb(99, 102, 241),
+                PressedColor = Color.FromArgb(67, 56, 202),
+                BorderColor = Color.FromArgb(129, 140, 248),
+                Size = new Size(130, 32),
+                Location = new Point(426, 78)
+            };
+            _btnStudioCanvas.Click += BtnStudioCanvas_Click;
+
+            _btnExportGif = new ModernButton
+            {
+                Text = "🎞 Export GIF",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                NormalColor = Color.FromArgb(13, 148, 136), // Teal
+                HoverColor = Color.FromArgb(20, 184, 166),
+                PressedColor = Color.FromArgb(15, 118, 110),
+                BorderColor = Color.FromArgb(45, 212, 191),
+                Size = new Size(110, 32),
+                Location = new Point(560, 78)
+            };
+            _btnExportGif.Click += BtnExportGif_Click;
+
             _btnAutoEdit = new ModernButton
             {
-                Text = "Auto-Edit (Free)",
+                Text = "Auto-Edit",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 NormalColor = Color.FromArgb(16, 185, 129),
                 HoverColor = Color.FromArgb(52, 211, 153),
                 PressedColor = Color.FromArgb(5, 150, 105),
                 BorderColor = Color.FromArgb(110, 231, 183),
-                Size = new Size(125, 32),
-                Location = new Point(505, 78)
+                Size = new Size(100, 32),
+                Location = new Point(674, 78)
             };
             _btnAutoEdit.Click += BtnAutoEdit_Click;
 
@@ -1439,6 +1479,8 @@ namespace LabRecorder
             _pnlFinished.Controls.Add(_btnPlay);
             _pnlFinished.Controls.Add(_btnOpenFolder);
             _pnlFinished.Controls.Add(_btnCopyFile);
+            _pnlFinished.Controls.Add(_btnStudioCanvas);
+            _pnlFinished.Controls.Add(_btnExportGif);
             _pnlFinished.Controls.Add(_btnAutoEdit);
 
             // Add containers to Form
@@ -1995,6 +2037,13 @@ namespace LabRecorder
             _cmbMicDevice.Enabled = false;
             _chkSysAudio.Enabled = false;
             _chkCountdown.Enabled = false;
+            _chkClickHighlight.Enabled = false;
+
+            if (_chkClickHighlight.Checked)
+            {
+                Rectangle captureBounds = (screen != null && !screen.Bounds.IsEmpty) ? screen.Bounds : (Screen.PrimaryScreen?.Bounds ?? new Rectangle(0, 0, 1920, 1080));
+                _clickOverlay.Start(captureBounds);
+            }
 
             _recTimer.Start();
             _pulseTimer.Start();
@@ -2047,6 +2096,7 @@ namespace LabRecorder
 
             _recTimer.Stop();
             _pulseTimer.Stop();
+            _clickOverlay.Stop();
             _lblStatusPill.Text = "FINALIZING...";
             _lblStatusPill.ForeColor = Color.FromArgb(56, 189, 248);
             Refresh();
@@ -2074,6 +2124,7 @@ namespace LabRecorder
             _cmbMicDevice.Enabled = true;
             _chkSysAudio.Enabled = true;
             _chkCountdown.Enabled = true;
+            _chkClickHighlight.Enabled = true;
 
             if (_lastResult != null && !string.IsNullOrEmpty(_lastResult.FilePath) && File.Exists(_lastResult.FilePath))
             {
@@ -2200,6 +2251,81 @@ namespace LabRecorder
             }
         }
 
+        private async void BtnStudioCanvas_Click(object? sender, EventArgs e)
+        {
+            if (_lastResult == null || string.IsNullOrEmpty(_lastResult.FilePath) || !File.Exists(_lastResult.FilePath)) return;
+
+            _btnStudioCanvas.Enabled = false;
+            _btnStudioCanvas.Text = "Polishing...";
+            _lblStatusPill.Text = "STUDIO POLISHING...";
+            _lblStatusPill.ForeColor = Color.FromArgb(129, 140, 248);
+
+            string? polished = await _engine.ApplyStudioCanvasAsync(_lastResult.FilePath);
+            _btnStudioCanvas.Enabled = true;
+            _btnStudioCanvas.Text = "✨ Studio Canvas";
+
+            if (polished != null && File.Exists(polished))
+            {
+                _lblStatusPill.Text = "STUDIO POLISHED ✨";
+                _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
+
+                var fi = new FileInfo(polished);
+                var newDuration = _engine.ExtractDuration(polished);
+                var newThumb = _engine.ExtractThumbnail(polished);
+
+                _lastResult = new RecordingResult
+                {
+                    FilePath = polished,
+                    FileName = fi.Name,
+                    FileSizeBytes = fi.Length,
+                    FileSizeFormatted = RecorderEngine.FormatBytes(fi.Length),
+                    Duration = newDuration,
+                    DurationFormatted = $"{(int)newDuration.TotalMinutes:00}:{newDuration.Seconds:00}",
+                    Thumbnail = newThumb
+                };
+                ShowFinishedCard(_lastResult);
+
+                try { Process.Start("explorer.exe", $"/select,\"{polished}\""); } catch {}
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = polished, UseShellExecute = true });
+                }
+                catch {}
+            }
+            else
+            {
+                _lblStatusPill.Text = "POLISH FAILED";
+                _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
+            }
+        }
+
+        private async void BtnExportGif_Click(object? sender, EventArgs e)
+        {
+            if (_lastResult == null || string.IsNullOrEmpty(_lastResult.FilePath) || !File.Exists(_lastResult.FilePath)) return;
+
+            _btnExportGif.Enabled = false;
+            _btnExportGif.Text = "Exporting...";
+            _lblStatusPill.Text = "EXPORTING GIF...";
+            _lblStatusPill.ForeColor = Color.FromArgb(45, 212, 191);
+
+            string? gifPath = await _engine.ExportGifAsync(_lastResult.FilePath);
+            _btnExportGif.Enabled = true;
+            _btnExportGif.Text = "🎞 Export GIF";
+
+            if (gifPath != null && File.Exists(gifPath))
+            {
+                _lblStatusPill.Text = "GIF READY 🎞";
+                _lblStatusPill.ForeColor = Color.FromArgb(16, 185, 129);
+                try { Clipboard.SetText(gifPath); } catch {}
+                try { Process.Start("explorer.exe", $"/select,\"{gifPath}\""); } catch {}
+            }
+            else
+            {
+                _lblStatusPill.Text = "GIF FAILED";
+                _lblStatusPill.ForeColor = Color.FromArgb(225, 29, 72);
+            }
+        }
+
         private async void BtnAutoEdit_Click(object? sender, EventArgs e)
         {
             if (_lastResult != null && File.Exists(_lastResult.FilePath))
@@ -2300,6 +2426,8 @@ namespace LabRecorder
                 }
             }
 
+            _clickOverlay.Stop();
+            _clickOverlay.Dispose();
             _audioService.Dispose();
             _cameraService.Dispose();
             _engine.Dispose();

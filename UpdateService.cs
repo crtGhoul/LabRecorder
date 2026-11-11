@@ -21,7 +21,7 @@ namespace LabRecorder
 
     public static class UpdateService
     {
-        public const string CurrentVersion = "v1.2.2";
+        public const string CurrentVersion = "v1.3.0";
         private const string RepoOwner = "crtGhoul";
         private const string RepoName = "LabRecorder";
         private const string ReleasesApiUrl = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";

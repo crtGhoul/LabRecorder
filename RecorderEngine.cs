@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32.SafeHandles;
 
@@ -354,6 +357,258 @@ namespace LabRecorder
                 Debug.WriteLine("EnsureCircleMask error: " + ex.Message);
             }
             return maskPath;
+        }
+
+        public static string EnsureStudioBackdrop(int width, int height)
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"labrec_studio_bg_{width}x{height}.png");
+            try
+            {
+                if (File.Exists(path) && new FileInfo(path).Length > 1000)
+                {
+                    return path;
+                }
+
+                using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    // Obsidian base to Midnight Cosmic Indigo Gradient (Screen Studio signature palette)
+                    using var brush = new LinearGradientBrush(
+                        new Point(0, 0),
+                        new Point(width, height),
+                        Color.FromArgb(9, 11, 16),
+                        Color.FromArgb(20, 25, 45)
+                    );
+                    g.FillRectangle(brush, 0, 0, width, height);
+
+                    // Soft ambient spotlight in upper center
+                    using var pathGlow = new GraphicsPath();
+                    pathGlow.AddEllipse(width * 0.2f, -height * 0.1f, width * 0.6f, height * 0.8f);
+                    using var pgb = new PathGradientBrush(pathGlow)
+                    {
+                        CenterColor = Color.FromArgb(22, 56, 189, 248),
+                        SurroundColors = new[] { Color.Transparent }
+                    };
+                    g.FillPath(pgb, pathGlow);
+                }
+                bmp.Save(path, ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("EnsureStudioBackdrop error: " + ex.Message);
+            }
+            return path;
+        }
+
+        public static string EnsureRoundedWindowMask(int width, int height, int radius)
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"labrec_mask_{width}x{height}_r{radius}.png");
+            try
+            {
+                if (File.Exists(path) && new FileInfo(path).Length > 500)
+                {
+                    return path;
+                }
+
+                using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.Clear(Color.Black);
+                    using var pathRound = MainForm.CreateRoundedRectangle(new Rectangle(0, 0, width, height), radius);
+                    using var brush = new SolidBrush(Color.White);
+                    g.FillPath(brush, pathRound);
+                }
+                bmp.Save(path, ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("EnsureRoundedWindowMask error: " + ex.Message);
+            }
+            return path;
+        }
+
+        public static string EnsureWindowShadow(int innerW, int innerH, int shadowPad, int radius)
+        {
+            int shadowW = innerW + shadowPad * 2;
+            int shadowH = innerH + shadowPad * 2;
+            string path = Path.Combine(Path.GetTempPath(), $"labrec_shadow_{shadowW}x{shadowH}.png");
+            try
+            {
+                if (File.Exists(path) && new FileInfo(path).Length > 500)
+                {
+                    return path;
+                }
+
+                using var bmp = new Bitmap(shadowW, shadowH, PixelFormat.Format32bppArgb);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.Clear(Color.Transparent);
+
+                    // Multi-layer ambient drop shadow
+                    for (int layer = 3; layer >= 1; layer--)
+                    {
+                        int blur = layer * 8;
+                        int alpha = (int)(22 * (4 - layer));
+                        int yOffset = layer * 4;
+                        var rect = new Rectangle(shadowPad - blur / 2, shadowPad - blur / 2 + yOffset, innerW + blur, innerH + blur);
+                        using var shadowPath = MainForm.CreateRoundedRectangle(rect, radius + blur / 2);
+                        using var shadowBrush = new SolidBrush(Color.FromArgb(alpha, 0, 0, 0));
+                        g.FillPath(shadowBrush, shadowPath);
+                    }
+                }
+                bmp.Save(path, ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("EnsureWindowShadow error: " + ex.Message);
+            }
+            return path;
+        }
+
+        public async Task<string?> ApplyStudioCanvasAsync(string inputPath)
+        {
+            if (!File.Exists(inputPath)) return null;
+
+            string dir = Path.GetDirectoryName(inputPath) ?? "";
+            string baseName = Path.GetFileNameWithoutExtension(inputPath);
+            string outputPath = Path.Combine(dir, $"{baseName}_studio.mp4");
+
+            // Extract source video resolution
+            int srcW = 1920;
+            int srcH = 1080;
+            try
+            {
+                var psiProbe = new ProcessStartInfo
+                {
+                    FileName = FFmpegPath,
+                    Arguments = $"-i \"{inputPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true
+                };
+                using var pProbe = Process.Start(psiProbe);
+                if (pProbe != null)
+                {
+                    string err = await pProbe.StandardError.ReadToEndAsync();
+                    await pProbe.WaitForExitAsync();
+
+                    var m = Regex.Match(err, @"Video:.*?, (\d{3,5})x(\d{3,5})");
+                    if (m.Success)
+                    {
+                        srcW = int.Parse(m.Groups[1].Value);
+                        srcH = int.Parse(m.Groups[2].Value);
+                    }
+                }
+            }
+            catch {}
+
+            // Output canvas size
+            int canvasW = srcW >= 2560 ? 2560 : 1920;
+            int canvasH = srcH >= 1440 ? 1440 : 1080;
+
+            // Frame size: 85% of canvas (giving balanced studio padding around the recording)
+            int innerW = ((int)(canvasW * 0.86) / 2) * 2;
+            int innerH = ((int)(innerW * ((double)srcH / srcW)) / 2) * 2;
+            if (innerH > (int)(canvasH * 0.88))
+            {
+                innerH = ((int)(canvasH * 0.86) / 2) * 2;
+                innerW = ((int)(innerH * ((double)srcW / srcH)) / 2) * 2;
+            }
+
+            int posX = (canvasW - innerW) / 2;
+            int posY = (canvasH - innerH) / 2;
+
+            int shadowPad = 32;
+            int shadowPosX = posX - shadowPad;
+            int shadowPosY = posY - shadowPad;
+
+            string bgPath = EnsureStudioBackdrop(canvasW, canvasH);
+            string maskPath = EnsureRoundedWindowMask(innerW, innerH, 16);
+            string shadowPath = EnsureWindowShadow(innerW, innerH, shadowPad, 16);
+
+            string encoderArgs = ActiveEncoder switch
+            {
+                HardwareEncoderType.Amf => "-c:v h264_amf -usage lowlatency -quality speed -rc vbr_peak -b:v 14M -maxrate 14M -bufsize 28M",
+                HardwareEncoderType.Nvenc => "-c:v h264_nvenc -preset p3 -tune zerolatency -b:v 14M -maxrate 14M -bufsize 28M",
+                HardwareEncoderType.Qsv => "-c:v h264_qsv -preset veryfast -b:v 14M -maxrate 14M -bufsize 28M",
+                HardwareEncoderType.MediaFoundation => "-c:v h264_mf -b:v 14M",
+                _ => "-c:v libx264 -preset veryfast -crf 18"
+            };
+
+            string filterComplex =
+                $"[0:v]scale={innerW}:{innerH}:flags=lanczos,format=yuva420p[scrv];" +
+                $"[2:v]scale={innerW}:{innerH},format=gray[mask];" +
+                $"[scrv][mask]alphamerge[rounded_scr];" +
+                $"[1:v][3:v]overlay={shadowPosX}:{shadowPosY}[bg_shadow];" +
+                $"[bg_shadow][rounded_scr]overlay={posX}:{posY}[vout]";
+
+            string arguments = $"-y -i \"{inputPath}\" -loop 1 -i \"{bgPath}\" -loop 1 -i \"{maskPath}\" -loop 1 -i \"{shadowPath}\" " +
+                               $"-filter_complex \"{filterComplex}\" -map \"[vout]\" -map 0:a? " +
+                               $"{encoderArgs} -c:a copy -shortest -movflags +faststart \"{outputPath}\"";
+
+            bool success = await Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = FFmpegPath,
+                        Arguments = arguments,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var p = Process.Start(psi);
+                    p?.WaitForExit();
+                    return p?.ExitCode == 0 && File.Exists(outputPath);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("ApplyStudioCanvasAsync error: " + ex.Message);
+                    return false;
+                }
+            });
+
+            return success ? outputPath : null;
+        }
+
+        public async Task<string?> ExportGifAsync(string inputPath)
+        {
+            if (!File.Exists(inputPath)) return null;
+
+            string dir = Path.GetDirectoryName(inputPath) ?? "";
+            string baseName = Path.GetFileNameWithoutExtension(inputPath);
+            string outputPath = Path.Combine(dir, $"{baseName}_clip.gif");
+
+            // Optimal 30 FPS, Lanczos scaler, Bayer dithered palette
+            string filter = "fps=30,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer";
+            string arguments = $"-y -i \"{inputPath}\" -vf \"{filter}\" \"{outputPath}\"";
+
+            bool success = await Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = FFmpegPath,
+                        Arguments = arguments,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var p = Process.Start(psi);
+                    p?.WaitForExit();
+                    return p?.ExitCode == 0 && File.Exists(outputPath);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("ExportGifAsync error: " + ex.Message);
+                    return false;
+                }
+            });
+
+            return success ? outputPath : null;
         }
 
         public void StartRecording(
