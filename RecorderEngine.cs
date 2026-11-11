@@ -531,11 +531,11 @@ namespace LabRecorder
 
             string encoderArgs = ActiveEncoder switch
             {
-                HardwareEncoderType.Amf => "-c:v h264_amf -usage lowlatency -quality speed -rc vbr_peak -b:v 14M -maxrate 14M -bufsize 28M",
-                HardwareEncoderType.Nvenc => "-c:v h264_nvenc -preset p3 -tune zerolatency -b:v 14M -maxrate 14M -bufsize 28M",
-                HardwareEncoderType.Qsv => "-c:v h264_qsv -preset veryfast -b:v 14M -maxrate 14M -bufsize 28M",
-                HardwareEncoderType.MediaFoundation => "-c:v h264_mf -b:v 14M",
-                _ => "-c:v libx264 -preset veryfast -crf 18"
+                HardwareEncoderType.Amf => "-c:v h264_amf -usage transcoding -quality speed -rc vbr_peak -b:v 14M -maxrate 14M -bufsize 28M -g 60 -forced_idr 1 -header_spacing 60",
+                HardwareEncoderType.Nvenc => "-c:v h264_nvenc -preset p3 -tune zerolatency -b:v 14M -maxrate 14M -bufsize 28M -g 60 -forced_idr 1",
+                HardwareEncoderType.Qsv => "-c:v h264_qsv -preset veryfast -b:v 14M -maxrate 14M -bufsize 28M -g 60 -forced_idr 1",
+                HardwareEncoderType.MediaFoundation => "-c:v h264_mf -b:v 14M -g 60",
+                _ => "-c:v libx264 -preset veryfast -crf 18 -g 60"
             };
 
             string filterComplex =
@@ -759,11 +759,11 @@ namespace LabRecorder
             {
                 HardwareEncoderType.Amf => preset switch
                 {
-                    QualityPreset.Ultra => "-c:v h264_amf -usage lowlatency -quality speed -rc vbr_peak -b:v 36M -maxrate 36M -bufsize 72M -g 120 -bf 0",
-                    QualityPreset.Best => "-c:v h264_amf -usage lowlatency -quality speed -rc vbr_peak -b:v 12M -maxrate 12M -bufsize 24M -g 120 -bf 0",
-                    QualityPreset.Standard => "-c:v h264_amf -usage lowlatency -quality balanced -rc vbr_peak -b:v 8M -maxrate 8M -bufsize 16M -g 60 -bf 0",
-                    QualityPreset.Light => "-c:v h264_amf -usage lowlatency -quality balanced -rc vbr_peak -b:v 4M -maxrate 4M -bufsize 8M -g 60 -bf 0",
-                    _ => "-c:v h264_amf -usage lowlatency -quality speed -rc vbr_peak -b:v 12M -maxrate 12M -bufsize 24M -g 120 -bf 0"
+                    QualityPreset.Ultra => "-c:v h264_amf -usage transcoding -quality speed -rc vbr_peak -b:v 36M -maxrate 36M -bufsize 72M -g 60 -forced_idr 1 -header_spacing 60 -bf 0",
+                    QualityPreset.Best => "-c:v h264_amf -usage transcoding -quality speed -rc vbr_peak -b:v 12M -maxrate 12M -bufsize 24M -g 60 -forced_idr 1 -header_spacing 60 -bf 0",
+                    QualityPreset.Standard => "-c:v h264_amf -usage transcoding -quality balanced -rc vbr_peak -b:v 8M -maxrate 8M -bufsize 16M -g 30 -forced_idr 1 -header_spacing 30 -bf 0",
+                    QualityPreset.Light => "-c:v h264_amf -usage transcoding -quality balanced -rc vbr_peak -b:v 4M -maxrate 4M -bufsize 8M -g 30 -forced_idr 1 -header_spacing 30 -bf 0",
+                    _ => "-c:v h264_amf -usage transcoding -quality speed -rc vbr_peak -b:v 12M -maxrate 12M -bufsize 24M -g 60 -forced_idr 1 -header_spacing 60 -bf 0"
                 },
                 HardwareEncoderType.Nvenc => preset switch
                 {
@@ -993,7 +993,7 @@ namespace LabRecorder
 
             // Video Encoder: dynamically configured for AMD AMF, NVIDIA NVENC, Intel QSV, Windows MF, or CPU
             sb.Append($"{GetEncoderArguments(_currentQuality)} ");
-            sb.Append("-pix_fmt yuv420p -colorspace bt709 -color_primaries bt709 -color_trc bt709 ");
+            sb.Append("-pix_fmt yuv420p -colorspace bt709 -color_primaries bt709 -color_trc 1 ");
             sb.Append("-fps_mode cfr -flags +low_delay ");
             sb.Append("-max_muxing_queue_size 8192 ");
             // Fragmented MP4: Writes empty MOOV at byte 0 and flushes every keyframe fragment live.
