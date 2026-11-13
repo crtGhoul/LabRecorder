@@ -81,3 +81,14 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true 
 
 ## 📜 License
 MIT License. Built by Cesar Velazquez ([@crtGhoul](https://github.com/crtGhoul)) for [Velazquez Lab](https://velazquez-lab.pages.dev/).
+
+---
+
+## Velazquez Lab
+
+More free tools from Cesar Velazquez: [Velazquez Lab](https://velazquez-lab.pages.dev)
+
+- GitHub: https://github.com/crtGhoul
+- Codeberg: https://codeberg.org/crtGhoul
+- YouTube: https://www.youtube.com/@VelazquezLabs
+- Reddit: https://www.reddit.com/user/Manteqaada/
